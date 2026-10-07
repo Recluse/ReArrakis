@@ -8,6 +8,8 @@ typedef struct {
     int focused,enabled,layout,stick_x,stick_y;
     int custom;
     uint8_t binding[4];
+    char preferred[33];
+    int cursor_stick; /* 0: left, 1: right, 2: digital input only */
 } SDLPadInput;
 static int sdl_pad_bindable(unsigned button) {
     return button<SDL_CONTROLLER_BUTTON_MAX && button!=SDL_CONTROLLER_BUTTON_BACK &&
@@ -58,10 +60,10 @@ static uint8_t sdl_pad_physical(SDLPadInput *p) {
             buttons|=(uint8_t)(PAD_A<<i);
     p->stick_x=sdl_pad_axis(SDL_GameControllerGetAxis(p->controller,SDL_CONTROLLER_AXIS_LEFTX),p->stick_x);
     p->stick_y=sdl_pad_axis(SDL_GameControllerGetAxis(p->controller,SDL_CONTROLLER_AXIS_LEFTY),p->stick_y);
-    if(p->stick_x<0 || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_LEFT))buttons|=PAD_LEFT;
-    if(p->stick_x>0 || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_RIGHT))buttons|=PAD_RIGHT;
-    if(p->stick_y<0 || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_UP))buttons|=PAD_UP;
-    if(p->stick_y>0 || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_DOWN))buttons|=PAD_DOWN;
+    if((p->cursor_stick!=0 && p->stick_x<0) || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_LEFT))buttons|=PAD_LEFT;
+    if((p->cursor_stick!=0 && p->stick_x>0) || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_RIGHT))buttons|=PAD_RIGHT;
+    if((p->cursor_stick!=0 && p->stick_y<0) || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_UP))buttons|=PAD_UP;
+    if((p->cursor_stick!=0 && p->stick_y>0) || SDL_GameControllerGetButton(p->controller,SDL_CONTROLLER_BUTTON_DPAD_DOWN))buttons|=PAD_DOWN;
     return buttons;
 }
 static void sdl_pad_clear(SDLPadInput *p) {
@@ -71,17 +73,32 @@ static void sdl_pad_close(SDLPadInput *p) {
     if(p->controller)SDL_GameControllerClose(p->controller);
     p->controller=NULL;p->instance=-1;p->stick_x=p->stick_y=0;p->blocked=0;
 }
+static int sdl_pad_select(SDLPadInput *p,int index) {
+    SDL_GameController *controller=SDL_GameControllerOpen(index);if(!controller)return 0;
+    sdl_pad_close(p);p->controller=controller;
+    p->instance=SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller));
+    sdl_pad_clear(p);
+    fprintf(stderr,"gamepad: %s connected\n",SDL_GameControllerName(controller));return 1;
+}
 static void sdl_pad_connect(SDLPadInput *p) {
     if(p->controller)return;
+    int first=-1;
     for(int i=0;i<SDL_NumJoysticks();++i) {
-        if(!SDL_IsGameController(i))continue;
-        SDL_GameController *controller=SDL_GameControllerOpen(i);
-        if(!controller)continue;
-        p->controller=controller;
-        p->instance=SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller));
-        p->blocked=sdl_pad_physical(p);
-        const char *name=SDL_GameControllerName(controller);
-        fprintf(stderr,"gamepad: %s connected\n",name ? name:"Controller");break;
+        if(!SDL_IsGameController(i))continue;if(first<0)first=i;
+        char guid[33];SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(i),guid,sizeof guid);
+        if(!strcmp(guid,p->preferred) && sdl_pad_select(p,i))return;
+    }
+    if(first>=0)sdl_pad_select(p,first);
+}
+static void sdl_pad_cycle(SDLPadInput *p,int direction) {
+    int n=SDL_NumJoysticks(),current=direction>0?-1:0;
+    for(int i=0;i<n;i++)if(SDL_JoystickGetDeviceInstanceID(i)==p->instance)current=i;
+    for(int step=1;step<=n;step++) {
+        int index=(current+direction*step+n*2)%n;
+        if(SDL_IsGameController(index) && sdl_pad_select(p,index)) {
+            /* ponytail: GUID remembers the model; identical pads use first match on restart. */
+            SDL_JoystickGetGUIDString(SDL_JoystickGetDeviceGUID(index),p->preferred,sizeof p->preferred);return;
+        }
     }
 }
 static uint8_t sdl_pad_buttons(SDLPadInput *p,int suspended) {

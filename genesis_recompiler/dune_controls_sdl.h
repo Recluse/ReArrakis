@@ -34,27 +34,33 @@ static void dune_controls_text(SDL_Renderer *r,int x,int y,int scale,const char 
         }
     }
 }
-/* Small pixel-art controller, drawn with SDL primitives at the menu scale. */
+/* Diagram geometry is rasterized in drawable pixels, not enlarged pixel blocks. */
 static void dune_controls_oval(SDL_Renderer *r,int x,int y,int rx,int ry,int scale) {
+    rx*=scale;ry*=scale;
     for(int dy=-ry;dy<=ry;dy++) {
         int dx=rx;
-        while(dx>0 && dx*dx*ry*ry+dy*dy*rx*rx>rx*rx*ry*ry)--dx;
-        SDL_Rect row={x-dx*scale,y+dy*scale,(2*dx+1)*scale,scale};SDL_RenderFillRect(r,&row);
+        while(dx>0 && (double)dx*dx*ry*ry+(double)dy*dy*rx*rx>(double)rx*rx*ry*ry)--dx;
+        SDL_RenderDrawLine(r,x-dx,y+dy,x+dx,y+dy);
     }
 }
-/* Outline traced from Evan-Amos's public-domain photograph:
-   https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg
-   Coordinates follow its 1920-pixel preview; preserve the photo's proportions. */
+/* Front-view reference: https://www.gamerlifestore.com/products/sega-genesis-3-button-controller-original
+   Hand-traced shell, action-button recess and Start; photo is not distributed. */
 static void dune_controls_shape(SDL_Renderer *r,const SDL_Point *p,int n,int x,int y,int scale,SDL_Color color) {
-    SDL_FPoint v[64];float top=1e9f,bottom=0;
-    for(int i=0;i<n;i++) {
-        v[i]=(SDL_FPoint){x+p[i].x*.09f*scale,y+p[i].y*.09f*scale};
-        if(v[i].y<top)top=v[i].y;if(v[i].y>bottom)bottom=v[i].y;
+    SDL_FPoint v[256];float top=1e9f,bottom=0;
+    /* Smooth the traced outline between its measured landmarks. */
+    for(int i=0;i<n;i++)for(int j=0;j<4;j++) {
+        SDL_Point a=p[(i+n-1)%n],b=p[i],c=p[(i+1)%n],d=p[(i+2)%n];
+        float t=j/4.f,t2=t*t,t3=t2*t;
+        float px=.5f*(2*b.x+(-a.x+c.x)*t+(2*a.x-5*b.x+4*c.x-d.x)*t2+(-a.x+3*b.x-3*c.x+d.x)*t3);
+        float py=.5f*(2*b.y+(-a.y+c.y)*t+(2*a.y-5*b.y+4*c.y-d.y)*t2+(-a.y+3*b.y-3*c.y+d.y)*t3);
+        v[i*4+j]=(SDL_FPoint){x+px*.09f*scale,y+py*.09f*scale};
+        if(v[i*4+j].y<top)top=v[i*4+j].y;if(v[i*4+j].y>bottom)bottom=v[i*4+j].y;
     }
+    n*=4;
     SDL_SetRenderDrawColor(r,color.r,color.g,color.b,color.a);
     /* Scanline pairs preserve the concave grip cutout. */
     for(int row=(int)top;row<bottom;row++) {
-        float cross[64],scan=row+.5f;int count=0;
+        float cross[256],scan=row+.5f;int count=0;
         for(int i=0,j=n-1;i<n;j=i++) {
             if((v[i].y>scan)==(v[j].y>scan))continue;
             float at=v[i].x+(scan-v[i].y)*(v[j].x-v[i].x)/(v[j].y-v[i].y);
@@ -64,67 +70,73 @@ static void dune_controls_shape(SDL_Renderer *r,const SDL_Point *p,int n,int x,i
     }
 }
 static void dune_controls_pad(SDLHost *h,int x,int y,int scale) {
-    SDL_Renderer *r=h->renderer;x+=8*scale;y+=39*scale;
-    static const SDL_Point shell[]={
-        {57,632},{73,542},{112,447},{170,368},{247,307},{339,260},
-        {452,224},{579,199},{711,184},{849,181},{990,187},{1122,205},
-        {1252,236},{1374,278},{1493,329},{1600,389},{1695,460},{1770,539},
-        {1827,627},{1854,713},{1858,800},{1834,884},{1790,964},{1723,1037},
-        {1640,1102},{1545,1159},{1443,1208},{1343,1240},{1269,1239},
-        {1218,1205},{1181,1148},{1158,1085},{1143,1018},{1127,962},
-        {1098,913},{1054,873},{998,837},{925,805},{842,783},{751,770},
-        {653,767},{559,781},{479,807},{418,845},{368,899},{328,945},
-        {279,977},{222,990},{170,980},{128,947},{94,892},{70,822},{57,731}};
-    dune_controls_shape(r,shell,sizeof shell/sizeof *shell,x,y+3*scale,scale,(SDL_Color){10,12,16,255});
-    dune_controls_shape(r,shell,sizeof shell/sizeof *shell,x,y,scale,(SDL_Color){66,71,80,255});
-    enum {POINTS=sizeof shell/sizeof *shell};
-    SDL_Point outline[POINTS+1];
-    for(unsigned i=0;i<sizeof shell/sizeof *shell;i++)outline[i]=(SDL_Point){x+(int)(shell[i].x*.09f*scale),y+(int)(shell[i].y*.09f*scale)};
-    outline[POINTS]=outline[0];SDL_SetRenderDrawColor(r,122,130,141,255);SDL_RenderDrawLines(r,outline,POINTS+1);
-    static const SDL_Point bezel[]={
-        {1032,667},{1052,610},{1112,555},{1200,507},{1305,477},{1416,461},
-        {1520,461},{1621,483},{1701,527},{1749,590},{1756,652},{1721,697},
-        {1655,720},{1572,722},{1490,725},{1411,735},{1325,753},{1240,782},
-        {1170,801},{1103,791},{1055,746}};
-    dune_controls_shape(r,bezel,sizeof bezel/sizeof *bezel,x,y,scale,(SDL_Color){19,22,28,255});
-    SDL_SetRenderDrawColor(r,19,22,28,255);dune_controls_oval(r,x+43*scale,y+42*scale,25,21,scale);
-    SDL_SetRenderDrawColor(r,95,102,113,255);dune_controls_oval(r,x+43*scale,y+42*scale,19,17,scale);
-    SDL_SetRenderDrawColor(r,28,32,40,255);dune_controls_oval(r,x+43*scale,y+42*scale,18,16,scale);
-    SDL_SetRenderDrawColor(r,65,73,87,255);
-    SDL_Rect horizontal={x+28*scale,y+37*scale,30*scale,10*scale};SDL_RenderFillRect(r,&horizontal);
-    SDL_Rect vertical={x+38*scale,y+27*scale,10*scale,30*scale};SDL_RenderFillRect(r,&vertical);
-    SDL_SetRenderDrawColor(r,54,60,70,255);dune_controls_oval(r,x+43*scale,y+42*scale,4,4,scale);
-    SDL_SetRenderDrawColor(r,198,204,215,255);
-    dune_controls_text(r,x+80*scale,y+27*scale,scale,"SEGA",4);
-    dune_controls_text(r,x+71*scale,y+36*scale,scale,"GENESIS",7);
-    const int bx[4]={106,125,144,124},by[4]={60,55,53,35};
-    const char *label[4]={"A","B","C","START"};
-    for(int i=0;i<4;i++) {
-        int active=h->controls.remap==i+1,px=x+bx[i]*scale,py=y+by[i]*scale;
-        SDL_SetRenderDrawColor(r,5,7,10,255);dune_controls_oval(r,px,py+2*scale,i==3?10:9,i==3?4:8,scale);
-        SDL_SetRenderDrawColor(r,active?240:i==3?188:98,active?190:i==3?192:106,active?80:i==3?198:119,255);
-        dune_controls_oval(r,px,py,i==3?10:9,i==3?4:8,scale);
-        if(i<3) {
-            SDL_SetRenderDrawColor(r,active?240:38,active?190:43,active?80:52,255);dune_controls_oval(r,px,py,7,6,scale);
-        }
-        SDL_SetRenderDrawColor(r,active?20:231,active?24:234,active?30:241,255);
-        dune_controls_text(r,px-(i==3?14:2)*scale,py-(i==3?13:3)*scale,scale,label[i],5);
+    SDL_Renderer *r=h->renderer;x+=8*scale;y+=54*scale;
+    static const SDL_Point shell[]={{12,537},{21,441},{51,351},{96,270},{168,204},{258,150},{366,102},{483,60},{615,30},{750,12},{879,0},{999,-3},{1137,9},{1269,39},{1401,81},{1530,132},{1641,189},{1746,255},{1833,333},{1896,420},{1935,519},{1950,621},{1938,729},{1905,837},{1854,933},{1788,1014},{1716,1083},{1644,1128},{1575,1143},{1512,1131},{1461,1092},{1425,1038},{1398,972},{1356,912},{1302,870},{1230,840},{1146,819},{1062,807},{969,804},{879,813},{798,834},{720,867},{657,909},{603,966},{570,1035},{537,1095},{486,1140},{423,1158},{360,1152},{294,1119},{222,1062},{159,990},{105,903},{63,810},{33,711},{15,621}};
+    static const SDL_Point bezel[]={{1179,600},{1194,534},{1233,471},{1296,420},{1380,375},{1470,333},{1563,300},{1659,276},{1734,279},{1797,309},{1845,363},{1863,432},{1851,510},{1809,570},{1746,618},{1665,657},{1575,699},{1482,744},{1398,780},{1323,789},{1260,768},{1209,723},{1185,663}};
+    static const SDL_Point start[]={{1311,246},{1329,234},{1443,183},{1467,189},{1482,210},{1476,234},{1362,294},{1335,300},{1317,285}};
+
+    dune_controls_shape(r,shell,sizeof shell/sizeof *shell,x,y+2*scale,scale,(SDL_Color){7,9,12,255});
+    dune_controls_shape(r,shell,sizeof shell/sizeof *shell,x,y,scale,(SDL_Color){110,119,133,255});
+    dune_controls_shape(r,shell,sizeof shell/sizeof *shell,x,y+1,scale,(SDL_Color){39,43,51,255});
+    dune_controls_shape(r,bezel,sizeof bezel/sizeof *bezel,x,y,scale,(SDL_Color){9,11,15,255});
+    int cx=x+42*scale,cy=y+47*scale;
+    SDL_SetRenderDrawColor(r,80,87,100,255);dune_controls_oval(r,cx,cy,27,27,scale);
+    SDL_SetRenderDrawColor(r,12,15,21,255);dune_controls_oval(r,cx,cy,26,26,scale);
+    SDL_SetRenderDrawColor(r,65,72,84,255);dune_controls_oval(r,cx,cy,19,19,scale);
+    SDL_SetRenderDrawColor(r,26,30,38,255);dune_controls_oval(r,cx,cy,18,18,scale);
+    SDL_SetRenderDrawColor(r,77,84,96,255);
+    SDL_Rect crossx={cx-16*scale,cy-5*scale,33*scale,11*scale};SDL_RenderFillRect(r,&crossx);
+    SDL_Rect crossy={cx-5*scale,cy-16*scale,11*scale,33*scale};SDL_RenderFillRect(r,&crossy);
+    SDL_SetRenderDrawColor(r,27,31,38,255);dune_controls_oval(r,cx,cy,3,3,scale);
+    SDL_SetRenderDrawColor(r,223,226,232,255);
+    for(int row=0;row<4*scale;row++) {
+        int span=row/2;
+        SDL_RenderDrawLine(r,cx-span,cy-24*scale+row,cx+span,cy-24*scale+row);
+        SDL_RenderDrawLine(r,cx-span,cy+24*scale-row,cx+span,cy+24*scale-row);
+        SDL_RenderDrawLine(r,cx-24*scale+row,cy-span,cx-24*scale+row,cy+span);
+        SDL_RenderDrawLine(r,cx+24*scale-row,cy-span,cx+24*scale-row,cy+span);
+    }
+    int small=(scale*2+1)/3;if(small<1)small=1;
+    dune_controls_text(r,x+91*scale-12*small,y+23*scale,small,"SEGA",4);
+    dune_controls_text(r,x+91*scale-21*small,y+29*scale,small,"GENESIS",7);
+    int active=h->controls.remap==4;
+    dune_controls_shape(r,start,sizeof start/sizeof *start,x,y+scale,scale,(SDL_Color){6,8,12,255});
+    dune_controls_shape(r,start,sizeof start/sizeof *start,x,y,scale,active?(SDL_Color){240,190,80,255}:(SDL_Color){194,200,209,255});
+    SDL_SetRenderDrawColor(r,223,226,232,255);
+    dune_controls_text(r,x+126*scale-14*small,y+13*scale,small,"START",5);
+    const int bx[3]={119,138,155},by[3]={56,46,39};const char *label[3]={"A","B","C"};
+    for(int i=0;i<3;i++) {
+        int px=x+bx[i]*scale,py=y+by[i]*scale;active=h->controls.remap==i+1;
+        SDL_SetRenderDrawColor(r,4,6,10,255);dune_controls_oval(r,px,py+2*scale,9,9,scale);
+        SDL_SetRenderDrawColor(r,active?240:107,active?190:116,active?80:130,255);dune_controls_oval(r,px,py,9,9,scale);
+        SDL_SetRenderDrawColor(r,active?240:42,active?190:48,active?80:60,255);dune_controls_oval(r,px,py,8,8,scale);
+        SDL_SetRenderDrawColor(r,active?20:164,active?24:173,active?30:189,255);
+        dune_controls_text(r,px-2*small,py-3*small,small,label[i],1);
+        SDL_SetRenderDrawColor(r,225,229,237,255);
+        dune_controls_text(r,px-2*small,py-15*scale,small,label[i],1);
     }
 }
 static void dune_controls_read(SDLHost *h) {
     FILE *f=fopen("gamepad.cfg","r");if(!f)return;
-    unsigned enabled,layout,custom,b[4];char extra;
-    int n=fscanf(f,"ReArrakis controls 1 %u %u %u %u %u %u %u %c",&enabled,&layout,&custom,&b[0],&b[1],&b[2],&b[3],&extra);fclose(f);
-    if(n!=7 || enabled>1 || layout>1 || custom>1)return;
+    unsigned version,enabled,layout,custom,b[4],stick=0;char extra,guid[33]={0};
+    int n=fscanf(f,"ReArrakis controls %u %u %u %u %u %u %u %u",&version,&enabled,&layout,&custom,&b[0],&b[1],&b[2],&b[3]);
+    int valid=n==8 && (version>=1 && version<=3);
+    if(valid && version==3)valid=fscanf(f," %u",&stick)==1 && stick<=2;
+    if(valid && version>=2) {
+        valid=fscanf(f," %32s",guid)==1 && strlen(guid)==32;
+        for(int i=0;valid && i<32;i++)valid=(guid[i]>='0' && guid[i]<='9') || (guid[i]>='a' && guid[i]<='f');
+    }
+    if(fscanf(f," %c",&extra)==1)valid=0;fclose(f);
+    if(!valid || enabled>1 || layout>1 || custom>1)return;
     uint8_t binding[4];for(unsigned i=0;i<4;i++){if(b[i]>=SDL_CONTROLLER_BUTTON_MAX)return;binding[i]=(uint8_t)b[i];}
     if(!sdl_pad_bindings_valid(binding))return;
-    h->input.enabled=enabled;h->input.layout=layout;h->input.custom=custom;memcpy(h->input.binding,binding,4);
+    h->input.cursor_stick=(int)stick;h->input.enabled=enabled;h->input.layout=layout;h->input.custom=custom;memcpy(h->input.binding,binding,4);memcpy(h->input.preferred,guid,33);
 }
 static void dune_controls_write(SDLHost *h) {
     FILE *f=fopen("gamepad.cfg.tmp","w");int ok=0;
     if(f){
-        ok=fprintf(f,"ReArrakis controls 1\n%d %d %d %u %u %u %u\n",h->input.enabled,h->input.layout,h->input.custom,
-            sdl_pad_binding(&h->input,0),sdl_pad_binding(&h->input,1),sdl_pad_binding(&h->input,2),sdl_pad_binding(&h->input,3))>0;
+        ok=fprintf(f,"ReArrakis controls 3\n%d %d %d %u %u %u %u\n%d\n%s\n",h->input.enabled,h->input.layout,h->input.custom,
+            sdl_pad_binding(&h->input,0),sdl_pad_binding(&h->input,1),sdl_pad_binding(&h->input,2),sdl_pad_binding(&h->input,3),h->input.cursor_stick,h->input.preferred[0]?h->input.preferred:"00000000000000000000000000000000")>0;
         if(fclose(f))ok=0;
         if(ok)ok=!rename("gamepad.cfg.tmp","gamepad.cfg");
     }
@@ -135,6 +147,7 @@ static void dune_controls_toggle(SDLHost *h,CPU *c) {
     else{h->controls.menu=1;h->controls.was_paused=h->paused;h->paused=1;h->controls.message[0]=0;}
     sdl_pad_clear(&h->input);c->pad_buttons[0]=0;h->fast_forward=0;
 #ifdef GENESIS_DUNE_MOUSE
+    h->stick_cursor_active=0;h->stick_cursor_blocked=1;
     dune_mouse_reset(&h->dune_mouse);h->dune_view.pointer_valid=0;
 #endif
     sdl_host_rebase(h,c);h->last_frame=UINT64_MAX;
@@ -183,8 +196,8 @@ static int dune_controls_event(SDLHost *h,CPU *c,const SDL_Event *e) {
     if(e->type==SDL_KEYDOWN && !e->key.repeat){
         SDL_Keycode key=e->key.keysym.sym;
         if(key==SDLK_ESCAPE){dune_controls_toggle(h,c);return 1;}
-        if(key==SDLK_UP)s->selected=(s->selected+4)%5;
-        if(key==SDLK_DOWN)s->selected=(s->selected+1)%5;
+        if(key==SDLK_UP)s->selected=(s->selected+6)%7;
+        if(key==SDLK_DOWN)s->selected=(s->selected+1)%7;
         activate=key==SDLK_RETURN || key==SDLK_LEFT || key==SDLK_RIGHT;
     }
     if(e->type==SDL_MOUSEBUTTONDOWN && e->button.button==SDL_BUTTON_LEFT){
@@ -192,14 +205,26 @@ static int dune_controls_event(SDLHost *h,CPU *c,const SDL_Event *e) {
         if(ww<=0 || wh<=0)return 1;
         int scale=w/320;if(hg/224<scale)scale=hg/224;if(scale<1)scale=1;
         int x=e->button.x*w/ww-(w-320*scale)/2,y=e->button.y*hg/wh-(hg-224*scale)/2;
-        if(x>=200*scale && x<308*scale && y>=54*scale && y<154*scale){s->selected=(y/scale-54)/20;activate=1;}
+        if(x>=200*scale && x<308*scale && y>=54*scale && y<166*scale){s->selected=(y/scale-54)/16;activate=1;}
     }
     if(activate){
-        if(s->selected==4){dune_controls_toggle(h,c);return 1;}
-        if(s->selected==2){dune_controls_assign(h);return 1;}
-        if(s->selected==0)h->input.enabled=!h->input.enabled;
-        if(s->selected==1){h->input.layout=!h->input.layout;h->input.custom=0;}
-        if(s->selected==3){h->input.layout=0;h->input.custom=0;h->input.enabled=1;}
+        if(s->selected==0){
+            sdl_pad_cycle(&h->input,e->type==SDL_KEYDOWN && e->key.keysym.sym==SDLK_LEFT?-1:1);
+#ifdef GENESIS_DUNE_MOUSE
+            h->stick_cursor_active=0;h->stick_cursor_blocked=1;
+#endif
+        }
+        if(s->selected==1){
+            h->input.cursor_stick=(h->input.cursor_stick+(e->type==SDL_KEYDOWN && e->key.keysym.sym==SDLK_LEFT?2:1))%3;
+#ifdef GENESIS_DUNE_MOUSE
+            h->stick_cursor_active=0;h->stick_cursor_blocked=1;
+#endif
+        }
+        if(s->selected==6){dune_controls_toggle(h,c);return 1;}
+        if(s->selected==4){dune_controls_assign(h);return 1;}
+        if(s->selected==2)h->input.enabled=!h->input.enabled;
+        if(s->selected==3){h->input.layout=!h->input.layout;h->input.custom=0;}
+        if(s->selected==5){h->input.cursor_stick=0;h->input.layout=0;h->input.custom=0;h->input.enabled=1;}
         sdl_pad_clear(&h->input);dune_controls_write(h);
     }
     return 1;
@@ -217,15 +242,20 @@ static void dune_controls_draw(SDLHost *h) {
     dune_controls_pad(h,x,y,scale);
     SDL_SetRenderDrawColor(h->renderer,240,214,140,255);
     char text[96];const char *actions[4]={"A","B","C","START"};
-    for(int i=0;i<5;i++){
+    int count=0,chosen=0;
+    for(int i=0;i<SDL_NumJoysticks();i++)if(SDL_IsGameController(i)){
+        ++count;if(SDL_JoystickGetDeviceInstanceID(i)==h->input.instance)chosen=count;
+    }
+    char device[32];snprintf(device,sizeof device,"Pad: %d/%d",chosen,count);
+    for(int i=0;i<7;i++){
         if(h->controls.remap){
             if(i<4)snprintf(text,sizeof text,"%s %s: %s",h->controls.remap==i+1?"-":" ",actions[i],i<h->controls.remap-1?sdl_pad_label(h->controls.pending[i]):"...");
-            else snprintf(text,sizeof text,"Release to assign");
+            else snprintf(text,sizeof text,i==4?"Release to assign":"");
         }else{
-            const char *rows[5]={h->input.enabled?"Input: On":"Input: Off",h->input.custom?"Layout: Custom":h->input.layout?"Layout: A B X":"Layout: X A B","Assign buttons","Reset defaults","Back to game"};
+            const char *rows[7]={device,h->input.cursor_stick==0?"Cursor: Left":h->input.cursor_stick==1?"Cursor: Right":"Cursor: Off",h->input.enabled?"Input: On":"Input: Off",h->input.custom?"Layout: Custom":h->input.layout?"Layout: A B X":"Layout: X A B","Assign buttons","Reset defaults","Back to game"};
             snprintf(text,sizeof text,"%s %s",h->controls.selected==i?"-":" ",rows[i]);
         }
-        dune_controls_text(h->renderer,x+200*scale,y+(58+i*20)*scale,scale,text,18);
+        dune_controls_text(h->renderer,x+200*scale,y+(56+i*16)*scale,scale,text,18);
     }
     snprintf(text,sizeof text,h->controls.remap?"Press a button for %s":"SEGA GENESIS - 3 BUTTON CONTROL PAD",h->controls.remap?actions[h->controls.remap-1]:"");
     dune_controls_text(h->renderer,x+12*scale,y+167*scale,scale,text,48);

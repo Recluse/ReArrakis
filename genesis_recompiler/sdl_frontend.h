@@ -17,6 +17,9 @@ typedef struct {
     DuneControls controls;
     SDL_Window *window;
 #ifdef GENESIS_DUNE_MOUSE
+    double stick_cursor_x,stick_cursor_y;
+    Uint32 stick_cursor_tick;
+    int stick_cursor_active,stick_cursor_blocked,stick_cursor_speed;
     DuneMouse dune_mouse;
     DuneView dune_view;
     SDL_Texture *dune_world,*dune_hud;
@@ -66,6 +69,9 @@ static int sdl_host_open(SDLHost *h) {
 #ifdef GENESIS_DUNE_MOUSE
     h->dune_mouse.enabled=1;h->dune_view.zoom=100;
     h->dune_volume=dune_audio_volume(getenv("DUNE_VOLUME"));
+    h->stick_cursor_speed=100;
+    const char *speed=getenv("DUNE_STICK_SPEED");
+    if(speed){char *end;long value=strtol(speed,&end,10);if(end!=speed && !*end && value>=25 && value<=300)h->stick_cursor_speed=(int)value;}
 #endif
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS)) return sdl_host_error(h,"initialization failed");
     h->input.enabled=1;h->input.focused=1;h->input.instance=-1;
@@ -142,6 +148,49 @@ static uint8_t sdl_pad_key(SDL_Keycode key) {
     }
 }
 #include "dune_mouse_sdl.h"
+#ifdef GENESIS_DUNE_MOUSE
+static double dune_stick_axis(int value) {
+    if(value>=-10000 && value<=10000)return 0;
+    double normalized=(value>0?value-10000:value+10000)/22768.0;
+    return normalized*(normalized<0?-normalized:normalized);
+}
+/* Use the existing mouse-intent path; never move the desktop pointer. */
+static void dune_stick_cursor(SDLHost *h,CPU *c,Uint32 now) {
+    Uint32 elapsed=now-h->stick_cursor_tick;h->stick_cursor_tick=now;
+    SDL_GameController *pad=h->input.controller;
+    double dx=0,dy=0;
+    if(pad && SDL_GameControllerGetAttached(pad) && h->input.cursor_stick!=2) {
+        dx=dune_stick_axis(SDL_GameControllerGetAxis(pad,h->input.cursor_stick?SDL_CONTROLLER_AXIS_RIGHTX:SDL_CONTROLLER_AXIS_LEFTX));
+        dy=dune_stick_axis(SDL_GameControllerGetAxis(pad,h->input.cursor_stick?SDL_CONTROLLER_AXIS_RIGHTY:SDL_CONTROLLER_AXIS_LEFTY));
+    }
+    if(!pad || !SDL_GameControllerGetAttached(pad) || !h->input.enabled || !h->input.focused || h->paused || h->stopped || h->controls.menu) {
+        if(h->stick_cursor_active){dune_mouse_reset(&h->dune_mouse);h->dune_view.pointer_valid=0;}
+        h->stick_cursor_active=0;h->stick_cursor_blocked=dx!=0 || dy!=0;return;
+    }
+    if(c->pad_buttons[0]){h->stick_cursor_blocked=dx!=0 || dy!=0;return;}
+    if(!dx && !dy){
+        h->stick_cursor_blocked=0;
+        if(h->stick_cursor_active){h->dune_view.pointer_valid=0;h->dune_mouse.pan_x=h->dune_mouse.pan_y=0;}
+        return;
+    }
+    if(h->stick_cursor_blocked)return;
+    int w,height;SDL_GetWindowSize(h->window,&w,&height);if(w<=0 || height<=0)return;
+    if(!h->stick_cursor_active) {
+        h->stick_cursor_x=h->dune_view.pointer_valid?h->dune_view.pointer_x:w/2;
+        h->stick_cursor_y=h->dune_view.pointer_valid?h->dune_view.pointer_y:height/2;
+        h->stick_cursor_active=1;elapsed=0;
+    }
+    if(elapsed>50)elapsed=50;
+    double step=elapsed*.2*(height/224.0)*(h->stick_cursor_speed/100.0);
+    h->stick_cursor_x+=dx*step;h->stick_cursor_y+=dy*step;
+    if(h->stick_cursor_x<0)h->stick_cursor_x=0;if(h->stick_cursor_x>w-1)h->stick_cursor_x=w-1;
+    if(h->stick_cursor_y<0)h->stick_cursor_y=0;if(h->stick_cursor_y>height-1)h->stick_cursor_y=height-1;
+    SDL_Event event={0};event.type=SDL_MOUSEMOTION;
+    event.motion.x=(int)h->stick_cursor_x;event.motion.y=(int)h->stick_cursor_y;
+    dune_mouse_event(h,c,&event);h->stick_cursor_active=1;
+}
+
+#endif
 static void sdl_host_rebase(SDLHost *h, const CPU *c) {
     h->origin_counter=SDL_GetPerformanceCounter(); h->origin_master=c->master_cycles;
 }
@@ -186,6 +235,13 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
     int redraw=0;
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+#ifdef GENESIS_DUNE_MOUSE
+        if(event.type==SDL_MOUSEMOTION || event.type==SDL_MOUSEBUTTONDOWN)h->stick_cursor_active=0;
+        if((event.type==SDL_CONTROLLERDEVICEREMOVED || event.type==SDL_CONTROLLERDEVICEREMAPPED) && event.cdevice.which==h->input.instance){
+            h->stick_cursor_active=0;h->stick_cursor_blocked=1;
+            h->dune_view.pointer_valid=0;dune_mouse_reset(&h->dune_mouse);
+        }
+#endif
         if(dune_controls_capture(h,&event)){redraw=1;continue;}
         if(sdl_pad_event(&h->input,&event,h->controls.menu)){redraw=1;continue;}
         if(event.type==SDL_KEYUP)h->input.keyboard&=(uint8_t)~sdl_pad_key(event.key.keysym.sym);
@@ -227,6 +283,7 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
     c->pad_buttons[0]=sdl_pad_buttons(&h->input,h->paused || h->stopped || h->controls.menu);
 #ifdef GENESIS_DUNE_MOUSE
     if(c->pad_buttons[0]){dune_mouse_reset(&h->dune_mouse);h->dune_view.pointer_valid=0;}
+    dune_stick_cursor(h,c,SDL_GetTicks());
 #endif
     if (redraw || h->last_frame!=c->vdp.rendered_frames){
         if(h->controls.menu)dune_controls_draw(h);

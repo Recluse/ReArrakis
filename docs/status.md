@@ -137,9 +137,20 @@ Settings persist separately from console state. A ROM-free virtual-controller
 check covers assignment, persistence, duplicate rejection, held-button
 suppression, focus loss, deadzone and disconnect. Data Frog USB button events
 were observed through SDL on macOS; in-game physical-controller validation
-is still pending. Only the first recognized controller is active.
+is still pending. The active controller can be chosen in F10; one controller supplies input at a time.
 
 The settings illustration now traces the shell and button positions from
 [Evan-Amos's public-domain controller photograph](https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg).
 The original aspect ratio and concave grip cutout are retained; menu choices
 sit beside the pad. The photo is a reference only, with no image runtime dependency.
+
+Controller selection now cycles all recognized SDL devices and remembers the
+model GUID. Cursor input can use the left stick (default), right stick, or
+neither, with proportional speed and a deadzone. Virtual-device checks cover
+switching, non-selected input isolation, fallback on unplug, persisted choice,
+cursor movement and suspension. Physical Xbox Bluetooth gameplay is pending.
+
+The final controller drawing uses a consistent front view, checked against
+[this original three-button pad photograph](https://www.gamerlifestore.com/products/sega-genesis-3-button-controller-original).
+The shell, circular D-pad recess, angled action-button recess and Start are
+traced together. Curves render at drawable resolution; no photo is bundled.

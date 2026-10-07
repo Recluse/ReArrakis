@@ -107,7 +107,9 @@ The map adapts to the window; HUD elements remain separate. Title screens and me
 ## Gamepad
 
 SDL2 recognizes controllers at startup and on reconnect. The first supported
-controller is used. D-pad and left stick drive the original game cursor;
+controller is used initially. In F10, select the Pad row and use Left/Right,
+Enter or click to cycle through all connected controllers. Its name appears
+above the diagram. D-pad drives the original game cursor;
 keyboard and mouse remain available. Default Genesis A/B/C/Start bindings
 are SDL X/A/B/Start (Xbox-style names, regardless of printed button labels).
 
@@ -125,7 +127,19 @@ Settings are saved to `gamepad.cfg` in the working directory, or
 SDL2 mappings can be loaded from `gamecontrollerdb.txt` in the same directory.
 An unrecognized joystick needs a mapping before it can use this menu.
 Held buttons must be released after switching focus or leaving settings.
-Only one controller is active; unplug it to select another connected pad.
+The selected model is remembered by SDL GUID; identical models use the first
+match after restarting. If it disconnects, another available controller takes
+over. Button assignments are shared across pads; use Reset defaults or Assign
+buttons if a different pad needs another layout.
+
+The Cursor row selects Left (default), Right or Off. Analog deflection controls
+cursor speed, with a deadzone and finer movement near the center. Releasing
+the stick stops edge scrolling. The desktop mouse pointer is not moved. D-pad
+and action buttons retain native game input; when cursor control uses Right
+or Off, the left stick also acts as a D-pad. Center the stick after changing
+focus, selecting a controller, closing settings or pressing native game buttons.
+`DUNE_STICK_SPEED` adjusts sensitivity from 25 to 300 percent (default 100),
+for example `DUNE_STICK_SPEED=150 ./run-dune.sh`.
 
 ## Sound
 

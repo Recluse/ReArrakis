@@ -660,3 +660,32 @@ The settings illustration now traces the shell and button positions from
 [Evan-Amos's public-domain controller photograph](https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg).
 The original aspect ratio and concave grip cutout are retained; menu choices
 sit beside the pad. The photo is a reference only, with no image runtime dependency.
+
+## 2026-10-07 — controller selection and analog cursor
+
+F10 now cycles all recognized pads without unplugging them and remembers the
+selected SDL GUID. If that pad disappears, another connected pad takes over.
+Identical models share a GUID, so restart selects the first matching instance;
+button mappings remain shared. Config versions 1/2 are accepted; version 3
+stores controller preference and Cursor Left/Right/Off (Left by default).
+Analog cursor movement reuses mouse intents, with deadzone, proportional speed,
+window bounds and focus/menu guards. DUNE_STICK_SPEED provides 25–300% sensitivity.
+macOS enumerated Xbox Wireless Controller over Bluetooth (045e:02fd); physical
+in-game validation is pending. Virtual SDL tests exercise two simultaneous
+controllers, selection/persistence, unplug fallback and both cursor sticks.
+
+The final controller drawing uses a consistent front view, checked against
+[this original three-button pad photograph](https://www.gamerlifestore.com/products/sega-genesis-3-button-controller-original).
+The shell, circular D-pad recess, angled action-button recess and Start are
+traced together. Curves render at drawable resolution; no photo is bundled.
+
+Validation also cycles 21 simultaneously attached virtual pads and verifies
+wraparound. The mouse-event fixture initially failed because its minimal host
+excluded the new analog fields; analog servicing now lives in the frontend,
+leaving the existing mouse adapter independent. Both adapter and controller
+checks pass. The desktop pointer hides during stick use and returns on mouse
+movement.
+
+Final validation: 292 tests passed, one Linux-only check skipped. The updated
+21-pad/controller test and four Dune adapter checks passed separately after
+the final cursor-visibility change. Native build and app signature verified.
