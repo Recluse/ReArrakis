@@ -631,3 +631,27 @@ F3 показывает множитель (68K: 1/2). На каждый цик�
 Используется масштаб карты в drawable pixels, а не полоса 12 оконных
 пикселей от системного указателя. SDL-регрессия проверяет четыре края,
 масштабы 50/75/100%, остановку внутри окна и при выходе из него.
+
+## 2026-10-07 — SDL2 gamepad and settings
+
+Local branch `feat/dune-gamepad-settings` starts from debug `c7a49c5`, including
+the 2x CPU experiment. Reused RROP's SDL controller input and bitmap font;
+added a small F10/Back menu for layouts and A/B/C/Start assignment. No new
+dependency. Configuration is `gamepad.cfg` in the working directory (the app
+launcher uses Application Support/ReArrakis). Input is cleared across menu,
+focus and disconnect transitions; direct pad input cancels mouse intents.
+
+The initial diagnostic omitted SDL_INIT_VIDEO and reported no devices.
+With video initialized, the user's normal launch recorded `usb gamepad`,
+GUID `0500493cac05000004000000cda56d04`, recognized as an SDL controller,
+with 13 buttons and real down/up events. This confirms SDL delivery, not yet
+correct physical labels or full in-game control. A virtual SDL-controller
+regression check exercises the frontend, remapping and persistence without ROM.
+
+Validation: 292 tests passed (one Linux-only /dev/full check skipped).
+The virtual-controller check passed again after the settings layout changed.
+Native ROM build and ad-hoc app signature verification passed; a headless
+2,000,000-instruction smoke run reached the expected budget without a fault.
+The settings menu includes an SDL-drawn three-button Sega pad, highlighting
+the current assignment. A dummy-renderer screenshot was visually checked.
+Physical gameplay validation remains pending.

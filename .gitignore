@@ -33,3 +33,6 @@ settings.cfg
 .env.*
 .DS_Store
 Thumbs.db
+
+gamepad.cfg
+gamepad.cfg.tmp

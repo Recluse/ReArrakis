@@ -3,11 +3,18 @@
 #define GENESIS_SDL_FRONTEND_H
 #ifdef GENESIS_SDL2
 #include <SDL.h>
+#include "gamepad_sdl.h"
+typedef struct {
+    int menu,selected,remap,was_paused;
+    uint32_t held;uint8_t pending[4];char message[96];
+} DuneControls;
 
 #ifndef GENESIS_WINDOW_TITLE
 #define GENESIS_WINDOW_TITLE "ReArrakis"
 #endif
 typedef struct {
+    SDLPadInput input;
+    DuneControls controls;
     SDL_Window *window;
 #ifdef GENESIS_DUNE_MOUSE
     DuneMouse dune_mouse;
@@ -34,6 +41,7 @@ typedef struct {
 } SDLHost;
 
 static void sdl_host_close(SDLHost *h) {
+    sdl_pad_close(&h->input);
 #ifdef GENESIS_DUNE_MOUSE
     free(h->dune_view.shadow);free(h->dune_view.pixels);free(h->dune_view.ui);
     SDL_DestroyTexture(h->dune_world);SDL_DestroyTexture(h->dune_hud);
@@ -50,6 +58,8 @@ static int sdl_host_error(SDLHost *h, const char *operation) {
     fprintf(stderr,"SDL2 %s: %s\n",operation,SDL_GetError());
     h->error=1; return 0;
 }
+static void sdl_host_rebase(SDLHost *h,const CPU *c);
+#include "dune_controls_sdl.h"
 #include "dune_audio.h"
 #include "dune_view_sdl.h"
 static int sdl_host_open(SDLHost *h) {
@@ -58,6 +68,10 @@ static int sdl_host_open(SDLHost *h) {
     h->dune_volume=dune_audio_volume(getenv("DUNE_VOLUME"));
 #endif
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS)) return sdl_host_error(h,"initialization failed");
+    h->input.enabled=1;h->input.focused=1;h->input.instance=-1;
+    dune_controls_read(h);
+    if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))fprintf(stderr,"gamepad unavailable: %s\n",SDL_GetError());
+    else {SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");sdl_pad_connect(&h->input);}
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"nearest");
     int initial_width=960,initial_height=672;
 #ifdef GENESIS_DUNE_MOUSE
@@ -172,6 +186,16 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
     int redraw=0;
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
+        if(dune_controls_capture(h,&event)){redraw=1;continue;}
+        if(sdl_pad_event(&h->input,&event,h->controls.menu)){redraw=1;continue;}
+        if(event.type==SDL_KEYUP)h->input.keyboard&=(uint8_t)~sdl_pad_key(event.key.keysym.sym);
+        if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_FOCUS_LOST){
+            h->input.focused=0;sdl_pad_clear(&h->input);c->pad_buttons[0]=0;
+        }
+        if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_FOCUS_GAINED){
+            h->input.focused=1;sdl_pad_clear(&h->input);
+        }
+        if(dune_controls_event(h,c,&event)){redraw=1;continue;}
 #ifdef GENESIS_DUNE_MOUSE
         if(dune_view_event(h,c,&event)){redraw=1;continue;}
         dune_mouse_event(h,c,&event);
@@ -192,7 +216,7 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
                 return 0;
             }
             uint8_t button=sdl_pad_key(key);
-            if (down) c->pad_buttons[0]|=button; else c->pad_buttons[0]&=(uint8_t)~button;
+            if (down) h->input.keyboard|=button; else h->input.keyboard&=(uint8_t)~button;
             if (key==SDLK_TAB) { h->fast_forward=down; sdl_host_rebase(h,c); }
             if (down && !event.key.repeat && key==SDLK_SPACE && !h->stopped) {
                 h->paused=!h->paused; sdl_host_rebase(h,c);
@@ -200,12 +224,19 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
             }
         }
     }
-    if (redraw || h->last_frame!=c->vdp.rendered_frames){
+    c->pad_buttons[0]=sdl_pad_buttons(&h->input,h->paused || h->stopped || h->controls.menu);
 #ifdef GENESIS_DUNE_MOUSE
-        if(!dune_view_draw(h,c))return 0;
-#else
-        if (!sdl_host_draw(h,&c->vdp)) return 0;
+    if(c->pad_buttons[0]){dune_mouse_reset(&h->dune_mouse);h->dune_view.pointer_valid=0;}
 #endif
+    if (redraw || h->last_frame!=c->vdp.rendered_frames){
+        if(h->controls.menu)dune_controls_draw(h);
+        else {
+#ifdef GENESIS_DUNE_MOUSE
+            if(!dune_view_draw(h,c))return 0;
+#else
+            if (!sdl_host_draw(h,&c->vdp)) return 0;
+#endif
+        }
     }
     if(!sdl_host_audio_service(h,c))return 0;
     /* Service input every ~1 ms of modeled console time, even before video is enabled.

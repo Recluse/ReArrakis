@@ -128,3 +128,13 @@ Edge scrolling follows the visible game cursor bounds instead of a fixed
 use the same world scale as rendering, including drawable-pixel scaling.
 The ROM-free SDL regression covers all four edges at 50%, 75% and 100% zoom,
 stopping in the interior and cancelling on window leave.
+
+## SDL gamepad input (debug-derived local branch)
+
+Gamepad polling and hotplug use SDL2, with D-pad/left-stick movement and an
+F10/Back settings menu for presets, enable/disable and button assignment.
+Settings persist separately from console state. A ROM-free virtual-controller
+check covers assignment, persistence, duplicate rejection, held-button
+suppression, focus loss, deadzone and disconnect. Data Frog USB button events
+were observed through SDL on macOS; in-game physical-controller validation
+is still pending. Only the first recognized controller is active.

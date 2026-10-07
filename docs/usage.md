@@ -104,6 +104,29 @@ Mouse navigation also works in supported native menus. Original code still appli
 
 The map adapts to the window; HUD elements remain separate. Title screens and menus retain their original proportions. Expanded rendering is bounded to 1024 × 768 source pixels, so extreme aspect ratios may limit effective zoom. Minimap navigation is a recent addition requiring manual gameplay verification.
 
+## Gamepad
+
+SDL2 recognizes controllers at startup and on reconnect. The first supported
+controller is used. D-pad and left stick drive the original game cursor;
+keyboard and mouse remain available. Default Genesis A/B/C/Start bindings
+are SDL X/A/B/Start (Xbox-style names, regardless of printed button labels).
+
+Press **F10** (Fn + F10 on some Macs) or the controller **Back/Select** button
+for gamepad settings. The game pauses while this menu is open. Use arrows
+and Enter, D-pad and A, or mouse clicks. Choose the alternative A/B/X layout,
+turn gamepad input off, or assign A, B, C and Start individually. Release each
+button between assignments; the Sega diagram highlights the requested action.
+Escape or Back cancels without saving a partial
+assignment. D-pad, Back and Guide are reserved. Escape closes settings;
+outside settings it quits the game.
+
+Settings are saved to `gamepad.cfg` in the working directory, or
+`~/Library/Application Support/ReArrakis/` when using the macOS app. Optional
+SDL2 mappings can be loaded from `gamecontrollerdb.txt` in the same directory.
+An unrecognized joystick needs a mapping before it can use this menu.
+Held buttons must be released after switching focus or leaving settings.
+Only one controller is active; unplug it to select another connected pad.
+
 ## Sound
 
 The builder includes ymfm; the launcher uses `--audio on`.
