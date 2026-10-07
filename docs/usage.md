@@ -138,3 +138,10 @@ wall-clock time, sampled over at least half a second. Around 100% means
 real-time console speed; 50% means half speed. It measures console timing,
 not the frequency of game logic updates or unique rendered frames. Original
 game-logic slowdowns can still happen at 100%. Paused/stopped displays `--%`.
+
+Debug branch CPU experiment: the executable starts with 2x 68000 throughput.
+F4 switches between 1x and 2x; F3 shows the current multiplier (68K: 1/2).
+CPU cycles advance peripheral master time by half as much at 2x; VDP, Z80
+and audio keep their stock clocks. This changes original CPU timing and can
+affect CPU-bound gameplay. SPD remains console wall-clock speed, not CPU
+multiplier. This experiment does not belong to main's faithful defaults.

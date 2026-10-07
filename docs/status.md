@@ -99,3 +99,10 @@ versus wall time, sampled over at least 0.5 seconds. 100% means real-time
 console speed, not a guarantee of smooth original game logic. Pause, stop
 and clock rewind reset the sample. This change is published separately
 from main at the user's request.
+
+Debug branch CPU experiment: the executable starts with 2x 68000 throughput.
+F4 switches between 1x and 2x; F3 shows the current multiplier (68K: 1/2).
+CPU cycles advance peripheral master time by half as much at 2x; VDP, Z80
+and audio keep their stock clocks. This changes original CPU timing and can
+affect CPU-bound gameplay. SPD remains console wall-clock speed, not CPU
+multiplier. This experiment does not belong to main's faithful defaults.

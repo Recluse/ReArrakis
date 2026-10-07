@@ -102,6 +102,13 @@ int main(void) {
     assert(!c.fault && c.dune_wait_cycles==idle+4);
     c.halted=0;c.pc=0xfda;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+8);
     c.pc=0xfde;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+12);
+    uint64_t master=c.master_cycles,cycles=c.cycles;
+    c.dune_cpu_double=1;c.dune_cpu_clock_remainder=0;
+    machine_advance(&c,1);assert(c.master_cycles==master+3);
+    machine_advance(&c,1);assert(c.master_cycles==master+7 && c.cycles==cycles+2);
+    e.type=SDL_KEYDOWN;e.key.repeat=0;e.key.keysym.sym=SDLK_F4;
+    assert(dune_view_event(&h,&c,&e) && !c.dune_cpu_double);
+    master=c.master_cycles;machine_advance(&c,2);assert(c.master_cycles==master+14);
     sdl_host_close(&h);return 0;
 }
 '''

@@ -3,6 +3,14 @@
 static void machine_advance(CPU *c, unsigned cycles) {
     if (c->fault) return;
     unsigned clocks=cycles*7;
+#ifdef GENESIS_DUNE_MOUSE
+    /* Keep peripherals at their original clocks while doubling CPU throughput.
+       Carry half a master clock across instructions instead of rounding it away. */
+    if(c->dune_cpu_double){
+        clocks+=c->dune_cpu_clock_remainder;
+        c->dune_cpu_clock_remainder=clocks&1u;clocks/=2;
+    }
+#endif
     c->cycles+=cycles; c->master_cycles+=clocks;
     vdp_advance(c,clocks);
     unsigned zclocks=c->z80_divider+clocks;

@@ -39,7 +39,8 @@ typedef struct {
     uint64_t steps;
     uint64_t cycles, master_cycles, interrupts;
 #ifdef GENESIS_DUNE_MOUSE
-    uint64_t dune_wait_cycles; /* Host telemetry; no change to console clocks. */
+    uint64_t dune_wait_cycles; /* Host occupancy telemetry. */
+    unsigned dune_cpu_double,dune_cpu_clock_remainder; /* Experimental CPU-only overclock. */
 #endif
     unsigned instruction_cycles, z80_divider;
     int halted, fault;
@@ -376,6 +377,9 @@ static int run_main(int argc, char **argv, const uint8_t *rom, size_t size, int 
 #endif
     if (window && !limit_set) limit=UINT64_MAX;
     CPU c={0}; c.rom=rom; c.rom_size=size; c.sr=0x2700;
+#ifdef GENESIS_DUNE_MOUSE
+    c.dune_cpu_double=1; /* Debug branch: start at 2x, F4 restores stock speed. */
+#endif
     c.io_tx[0]=c.io_tx[1]=0xff; c.io_tx[2]=0xfb;
     c.vdp.pal=(uint8_t)pal;
     c.eeprom.enabled=(uint8_t)ea_eeprom;

@@ -49,7 +49,7 @@ static int dune_cpu_draw(SDLHost *h,const CPU *c){
     dune_speed_sample(h,c,SDL_GetPerformanceCounter(),SDL_GetPerformanceFrequency());
     SDL_BlendMode blend;Uint8 r,g,b,a;
     if(SDL_GetRenderDrawBlendMode(h->renderer,&blend) || SDL_GetRenderDrawColor(h->renderer,&r,&g,&b,&a))return 0;
-    SDL_Rect panel={8,8,112,50},bar={12,26,100,8};
+    SDL_Rect panel={8,8,112,66},bar={12,26,100,8};
     int ok=!SDL_SetRenderDrawBlendMode(h->renderer,SDL_BLENDMODE_BLEND) &&
            !SDL_SetRenderDrawColor(h->renderer,0,0,0,200) && !SDL_RenderFillRect(h->renderer,&panel) &&
            !SDL_SetRenderDrawColor(h->renderer,240,240,240,255);
@@ -61,6 +61,8 @@ static int dune_cpu_draw(SDLHost *h,const CPU *c){
     if(h->paused || h->stopped)snprintf(label,sizeof label,"SPD: --%%");
     else snprintf(label,sizeof label,"SPD: %u%%",h->dune_speed_percent);
     if(ok)ok=!SDL_SetRenderDrawColor(h->renderer,240,240,240,255) && dune_cpu_text(h->renderer,label,12,40);
+    snprintf(label,sizeof label,"68K: %u",c->dune_cpu_double?2u:1u);
+    if(ok)ok=dune_cpu_text(h->renderer,label,12,56);
     if(SDL_SetRenderDrawBlendMode(h->renderer,blend) || SDL_SetRenderDrawColor(h->renderer,r,g,b,a))ok=0;
     return ok;
 }
