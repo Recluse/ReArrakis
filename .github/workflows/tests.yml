@@ -24,3 +24,17 @@ jobs:
         run: make test
       - name: Build and execute synthetic ROM
         run: make demo
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install SDL2 dependencies
+        run: brew install pkgconf sdl2-compat
+      - name: Test translation, runtime and Dune adapters without a ROM
+        run: make test
+      - name: Build and execute synthetic ROM
+        run: make demo

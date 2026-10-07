@@ -4,7 +4,7 @@
 
 ReArrakis translates the original 68000 and Z80 code into C ahead of time, then builds a native executable. Original game logic runs alongside a runtime for the console hardware. The expanded map uses the game's terrain data and sprite routines.
 
-This is a work in progress. Linux is the supported build platform. The first Atreides mission has been exercised through victory in the source project; the full campaign is not yet verified.
+This is a work in progress. Native builds are available on Linux and macOS (Apple Silicon tested). The first Atreides mission has been exercised through victory in the source project; the full campaign is not yet verified.
 
 ## Features
 
@@ -44,6 +44,8 @@ cd ReArrakis
 python3 tools/build_dune.py '/path/to/Dune - The Battle for Arrakis (U) [!].gen'
 ./run-dune.sh
 ```
+
+For macOS dependencies and Finder launch, see the [macOS instructions](docs/usage.md#macos).
 
 Sound, mouse controls, adaptive rendering and zoom are enabled automatically. Compilation may take several minutes. The result is `build/dune`, with your ROM data embedded.
 
