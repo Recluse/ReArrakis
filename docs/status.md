@@ -91,3 +91,11 @@ The reported X11 Compose warning is separate and has not been fixed here.
 - RROP's host settings, external fonts and full-state save slots are not Dune features.
 
 Report [issues](https://github.com/kruzeman/ReArrakis/issues) with OS, source revision, ROM hash, house/mission and the exact action or diagnostic line. Do not upload game data.
+
+## Cursor edge scrolling — 2026-10-07
+
+Edge scrolling follows the visible game cursor bounds instead of a fixed
+12-point band around the OS pointer. The free square and snapped grid cursor
+use the same world scale as rendering, including drawable-pixel scaling.
+The ROM-free SDL regression covers all four edges at 50%, 75% and 100% zoom,
+stopping in the interior and cancelling on window leave.
