@@ -82,6 +82,14 @@ int main(void) {
     c.cycles=1100;c.dune_wait_cycles=880;c.vdp.frames=16;dune_cpu_sample(&h,&c);
     assert(h.dune_cpu_percent==20);
     c.cycles=1200;c.vdp.frames=31;dune_cpu_sample(&h,&c);assert(h.dune_cpu_percent==100);
+    h.dune_speed_valid=0;c.master_cycles=0;
+    dune_speed_sample(&h,&c,1000,1000);
+    c.master_cycles=vdp_master_frequency(&c.vdp)/2;
+    dune_speed_sample(&h,&c,1500,1000);assert(h.dune_speed_percent==100);
+    c.master_cycles+=vdp_master_frequency(&c.vdp)/4;
+    dune_speed_sample(&h,&c,2000,1000);assert(h.dune_speed_percent==50);
+    h.paused=1;dune_speed_sample(&h,&c,2500,1000);assert(h.dune_speed_percent==0);h.paused=0;
+    c.master_cycles=0;dune_speed_sample(&h,&c,2600,1000);assert(h.dune_speed_percent==0);
     CPU before=c;assert(dune_cpu_draw(&h,&c));assert(!memcmp(&before,&c,sizeof c));
     c.cycles=0;c.dune_wait_cycles=0;c.vdp.frames=0;dune_cpu_sample(&h,&c);
     c.cycles=100;c.dune_wait_cycles=100;c.vdp.frames=15;dune_cpu_sample(&h,&c);

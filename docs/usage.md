@@ -132,3 +132,9 @@ averaged over 15 console frames. Interrupt handling counts as work; a halted
 CPU counts as waiting. It is an estimate: other busy-wait loops count as work.
 This is not host CPU usage, GPU usage or an FPS counter. No console clock,
 instruction budget or gameplay speed is changed. The overlay starts disabled.
+
+The F3 debug overlay also shows `SPD: …%`: virtual console time versus
+wall-clock time, sampled over at least half a second. Around 100% means
+real-time console speed; 50% means half speed. It measures console timing,
+not the frequency of game logic updates or unique rendered frames. Original
+game-logic slowdowns can still happen at 100%. Paused/stopped displays `--%`.

@@ -15,11 +15,27 @@ static void dune_cpu_sample(SDLHost *h,const CPU *c){
     h->dune_cpu_percent=total?(unsigned)(((total-idle)*100+total/2)/total):0;
     h->dune_cpu_cycles=c->cycles;h->dune_cpu_idle=c->dune_wait_cycles;h->dune_cpu_frame=c->vdp.frames;
 }
+/* Wall-clock speed of virtual console time; independent of the work estimate. */
+static void dune_speed_sample(SDLHost *h,const CPU *c,Uint64 now,Uint64 frequency){
+    if(!h->dune_speed_valid || c->master_cycles<h->dune_speed_master ||
+       now<h->dune_speed_counter || h->paused || h->stopped){
+        h->dune_speed_counter=now;h->dune_speed_master=c->master_cycles;
+        h->dune_speed_valid=1;h->dune_speed_percent=0;return;
+    }
+    Uint64 elapsed=now-h->dune_speed_counter;
+    if(!frequency || (double)elapsed/(double)frequency<0.5)return;
+    double speed=(double)(c->master_cycles-h->dune_speed_master)*100.0*
+                 (double)frequency/((double)elapsed*vdp_master_frequency(&c->vdp));
+    h->dune_speed_percent=(unsigned)(speed>9999.0?9999.0:speed+0.5);
+    h->dune_speed_counter=now;h->dune_speed_master=c->master_cycles;
+}
 static int dune_cpu_text(SDL_Renderer *r,const char *text,int x,int y){
     static const uint8_t digits[10][5]={{7,5,5,5,7},{2,6,2,2,7},{7,1,7,4,7},{7,1,7,1,7},{5,5,7,1,1},{7,4,7,1,7},{7,4,7,5,7},{7,1,1,1,1},{7,5,7,5,7},{7,5,7,1,7}};
-    static const uint8_t k[5]={5,5,6,5,5},colon[5]={0,2,0,2,0},percent[5]={5,1,2,4,5};
+    static const uint8_t k[5]={5,5,6,5,5},colon[5]={0,2,0,2,0},percent[5]={5,1,2,4,5},
+        letter_s[5]={7,4,7,1,7},letter_p[5]={6,5,6,4,4},
+        letter_d[5]={6,5,5,5,6},dash[5]={0,0,7,0,0};
     for(;*text;++text,x+=8){
-        const uint8_t *glyph=*text>='0' && *text<='9'?digits[*text-'0']:*text=='K'?k:*text==':'?colon:*text=='%'?percent:NULL;
+        const uint8_t *glyph=*text>='0' && *text<='9'?digits[*text-'0']:*text=='K'?k:*text==':'?colon:*text=='%'?percent:*text=='S'?letter_s:*text=='P'?letter_p:*text=='D'?letter_d:*text=='-'?dash:NULL;
         if(!glyph)continue;
         for(int row=0;row<5;++row)for(int col=0;col<3;++col)if(glyph[row]&(4>>col)){
             SDL_Rect pixel={x+col*2,y+row*2,2,2};if(SDL_RenderFillRect(r,&pixel))return 0;
@@ -30,17 +46,21 @@ static int dune_cpu_text(SDL_Renderer *r,const char *text,int x,int y){
 static int dune_cpu_draw(SDLHost *h,const CPU *c){
     if(!h->dune_cpu_overlay)return 1;
     dune_cpu_sample(h,c);
+    dune_speed_sample(h,c,SDL_GetPerformanceCounter(),SDL_GetPerformanceFrequency());
     SDL_BlendMode blend;Uint8 r,g,b,a;
     if(SDL_GetRenderDrawBlendMode(h->renderer,&blend) || SDL_GetRenderDrawColor(h->renderer,&r,&g,&b,&a))return 0;
-    SDL_Rect panel={8,8,112,34},bar={12,26,100,8};
+    SDL_Rect panel={8,8,112,50},bar={12,26,100,8};
     int ok=!SDL_SetRenderDrawBlendMode(h->renderer,SDL_BLENDMODE_BLEND) &&
            !SDL_SetRenderDrawColor(h->renderer,0,0,0,200) && !SDL_RenderFillRect(h->renderer,&panel) &&
            !SDL_SetRenderDrawColor(h->renderer,240,240,240,255);
-    char label[16];snprintf(label,sizeof label,"68K: %u%%",h->dune_cpu_percent);
+    char label[24];snprintf(label,sizeof label,"68K: %u%%",h->dune_cpu_percent);
     if(ok)ok=dune_cpu_text(h->renderer,label,12,12) && !SDL_RenderDrawRect(h->renderer,&bar);
     bar.x++;bar.y++;bar.h-=2;bar.w=(int)(98*h->dune_cpu_percent/100);
     if(ok)ok=!SDL_SetRenderDrawColor(h->renderer,h->dune_cpu_percent>=80?255:64,h->dune_cpu_percent>=95?72:220,64,255);
     if(ok && bar.w)ok=!SDL_RenderFillRect(h->renderer,&bar);
+    if(h->paused || h->stopped)snprintf(label,sizeof label,"SPD: --%%");
+    else snprintf(label,sizeof label,"SPD: %u%%",h->dune_speed_percent);
+    if(ok)ok=!SDL_SetRenderDrawColor(h->renderer,240,240,240,255) && dune_cpu_text(h->renderer,label,12,40);
     if(SDL_SetRenderDrawBlendMode(h->renderer,blend) || SDL_SetRenderDrawColor(h->renderer,r,g,b,a))ok=0;
     return ok;
 }

@@ -91,3 +91,11 @@ The reported X11 Compose warning is separate and has not been fixed here.
 - RROP's host settings, external fonts and full-state save slots are not Dune features.
 
 Report [issues](https://github.com/kruzeman/ReArrakis/issues) with OS, source revision, ROM hash, house/mission and the exact action or diagnostic line. Do not upload game data.
+
+## Debug branch speed telemetry — 2026-10-07
+
+The `debug` branch adds SPD to the F3 overlay: virtual master-clock progress
+versus wall time, sampled over at least 0.5 seconds. 100% means real-time
+console speed, not a guarantee of smooth original game logic. Pause, stop
+and clock rewind reset the sample. This change is published separately
+from main at the user's request.

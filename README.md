@@ -75,3 +75,9 @@ If you enjoy the project, you can buy the author a coffee. Bug reports, testing 
 Project code: [MIT](LICENSE). Vendored ymfm: BSD 3-Clause; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
 The original game and its assets are not covered by these licenses. No ROM, extracted game assets, generated game code or game executable is included. ReArrakis is an independent fan project, not affiliated with the original developers or rights holders.
+
+The F3 debug overlay also shows `SPD: …%`: virtual console time versus
+wall-clock time, sampled over at least half a second. Around 100% means
+real-time console speed; 50% means half speed. It measures console timing,
+not the frequency of game logic updates or unique rendered frames. Original
+game-logic slowdowns can still happen at 100%. Paused/stopped displays `--%`.

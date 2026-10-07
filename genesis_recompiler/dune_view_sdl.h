@@ -105,7 +105,7 @@ static int dune_view_event(SDLHost *h,CPU *c,const SDL_Event *e){
         dune_mouse_reset(&h->dune_mouse);dune_view_pointer(h,c);return !!delta;
     }
     if(e->type==SDL_KEYDOWN && !e->key.repeat && e->key.keysym.sym==SDLK_F3){
-        h->dune_cpu_overlay=!h->dune_cpu_overlay;h->dune_cpu_sample_valid=0;return 1;
+        h->dune_cpu_overlay=!h->dune_cpu_overlay;h->dune_cpu_sample_valid=0;h->dune_speed_valid=0;return 1;
     }
     if(e->type==SDL_KEYDOWN && !e->key.repeat && e->key.keysym.sym==SDLK_0){
         h->dune_view.zoom=100;dune_mouse_reset(&h->dune_mouse);dune_view_pointer(h,c);return 1;

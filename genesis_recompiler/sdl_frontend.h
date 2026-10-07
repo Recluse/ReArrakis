@@ -17,7 +17,10 @@ typedef struct {
     int dune_window_width,dune_window_height;
     int dune_volume;
     int dune_cpu_overlay,dune_cpu_sample_valid;
-    unsigned dune_cpu_percent;
+    unsigned dune_cpu_percent,dune_speed_percent;
+    int dune_speed_valid;
+    Uint64 dune_speed_counter;
+    uint64_t dune_speed_master;
     uint64_t dune_cpu_cycles,dune_cpu_idle,dune_cpu_frame;
 #endif
     SDL_Renderer *renderer;
