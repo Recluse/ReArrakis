@@ -67,14 +67,18 @@ assert(SDL_PushEvent(&e)==1); assert(sdl_host_service(&h,&c));
 assert(!c.pad_buttons[0] && !h.fast_forward);
 ''')
 
-    def test_pause_ignores_repeat_rebases_clock_and_escape_quits(self):
+    def test_pause_rebases_clock_and_escape_opens_recoverable_settings(self):
         self.check('''
 c.master_cycles=53693175;
 key(SDL_KEYDOWN,SDLK_SPACE,0); assert(sdl_host_service(&h,&c)); assert(h.paused);
 assert(h.origin_master==c.master_cycles);
 key(SDL_KEYDOWN,SDLK_SPACE,1); assert(sdl_host_service(&h,&c)); assert(h.paused);
 key(SDL_KEYDOWN,SDLK_SPACE,0); assert(sdl_host_service(&h,&c)); assert(!h.paused);
-key(SDL_KEYDOWN,SDLK_ESCAPE,0); assert(!sdl_host_service(&h,&c));
+key(SDL_KEYDOWN,SDLK_ESCAPE,0); assert(sdl_host_service(&h,&c)); assert(h.controls.menu && h.paused);
+key(SDL_KEYDOWN,SDLK_ESCAPE,0); assert(sdl_host_service(&h,&c)); assert(!h.controls.menu && !h.paused);
+key(SDL_KEYDOWN,SDLK_F1,0); assert(sdl_host_service(&h,&c)); assert(h.controls.menu);
+h.controls.selected=8; key(SDL_KEYDOWN,SDLK_RETURN,0);
+if(sdl_host_service(&h,&c))assert(!sdl_host_service(&h,&c));
 ''')
 
     def test_rgb_texture_resolution_changes_and_redraw(self):

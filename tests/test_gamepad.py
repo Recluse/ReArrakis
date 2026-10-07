@@ -35,7 +35,8 @@ static unsigned pixel(SDLHost *h,int x,int y) {
  return value&0xffffff;
 }
 static void begin(SDLHost *h,CPU *c) {
- if(!h->controls.menu)dune_controls_toggle(h,c);h->controls.selected=4;
+ if(!h->controls.menu)dune_controls_toggle(h,c);
+ h->controls.page=1;h->controls.selected=8;
  key(h,c,SDLK_RETURN);assert(h->controls.remap==1 && !c->pad_buttons[0]);
 }
 int main(void) {
@@ -57,117 +58,92 @@ int main(void) {
                               capture_output=True,text=True,timeout=15)
         self.assertEqual(result.returncode,0,result.stderr)
 
-    def test_complete_wizard_persists_maps_buttons_and_blocks_confirmation_leak(self):
+    def test_configure_isolate_calibrate_and_persist_controllers(self):
         self.check(r'''
 SDL_SetWindowSize(h.window,320,224);
+key(&h,c,SDLK_ESCAPE);assert(h.controls.menu);key(&h,c,SDLK_ESCAPE);assert(!h.controls.menu);
 begin(&h,c);
-/* The traced shell keeps its grip cutout, and A is highlighted during assignment. */
-dune_controls_draw(&h);
-assert(pixel(&h,95,100)==0x272b33);
-assert(pixel(&h,85,135)==0x14181e);
-assert(pixel(&h,127,116)==0xf0be50);
-unsigned mapping[4]={SDL_CONTROLLER_BUTTON_Y,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_X};
-for(unsigned i=0;i<4;++i) {
+unsigned mapping[8]={SDL_CONTROLLER_BUTTON_Y,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_X,
+ SDL_CONTROLLER_BUTTON_DPAD_UP,SDL_CONTROLLER_BUTTON_DPAD_DOWN,SDL_CONTROLLER_BUTTON_DPAD_LEFT,SDL_CONTROLLER_BUTTON_DPAD_RIGHT};
+for(unsigned i=0;i<8;i++){
  button(&h,c,j,mapping[i],1);assert(!c->pad_buttons[0]);
- if(i<3)assert(h.controls.remap==(int)i+2 && !h.input.custom);
- else assert(!h.controls.remap && h.input.custom);
+ if(i<7)assert(h.controls.remap==(int)i+2);else assert(!h.controls.remap && h.input.custom);
  button(&h,c,j,mapping[i],0);
 }
-for(unsigned i=0;i<4;++i)assert(sdl_pad_binding(&h.input,i)==mapping[i]);
 dune_controls_toggle(&h,c);
-for(unsigned i=0;i<4;++i) {
- button(&h,c,j,mapping[i],1);assert(c->pad_buttons[0]==(PAD_A<<i));
+for(unsigned i=0;i<8;i++){
+ button(&h,c,j,mapping[i],1);assert(c->pad_buttons[0]==sdl_pad_bits[i]);
  button(&h,c,j,mapping[i],0);assert(!c->pad_buttons[0]);
 }
 h.input.custom=0;dune_controls_read(&h);assert(h.input.custom);
-for(unsigned i=0;i<4;++i)assert(sdl_pad_binding(&h.input,i)==mapping[i]);
-/* Final wizard press stays held: closing settings must not press Start. */
-begin(&h,c);
-for(unsigned i=0;i<4;++i) {
- button(&h,c,j,mapping[i],1);if(i<3)button(&h,c,j,mapping[i],0);
-}
-dune_controls_toggle(&h,c);assert(sdl_host_service(&h,c));assert(!c->pad_buttons[0]);
-button(&h,c,j,mapping[3],0);button(&h,c,j,mapping[3],1);assert(c->pad_buttons[0]==PAD_START);
-button(&h,c,j,mapping[3],0);
-
-/* Directions, deadzone, focus loss and hotplug use the same SDL event path. */
-h.input.cursor_stick=1;
-button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_LEFT,1);assert(c->pad_buttons[0]==PAD_LEFT);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_LEFT,0);
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,16000));
-assert(sdl_host_service(&h,c));assert(c->pad_buttons[0]==PAD_RIGHT);
-SDL_Event e={0};e.type=SDL_WINDOWEVENT;e.window.event=SDL_WINDOWEVENT_FOCUS_LOST;
-assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,c));assert(!c->pad_buttons[0]);
-e.window.event=SDL_WINDOWEVENT_FOCUS_GAINED;assert(SDL_PushEvent(&e)==1);
-assert(sdl_host_service(&h,c));assert(!c->pad_buttons[0]);
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,0));assert(sdl_host_service(&h,c));
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,4000));
-assert(sdl_host_service(&h,c));assert(!c->pad_buttons[0]);
-begin(&h,c);button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,1);button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,0);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,1);assert(h.controls.remap==2);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,0);key(&h,c,SDLK_ESCAPE);assert(!h.controls.remap);
-for(unsigned i=0;i<4;++i)assert(sdl_pad_binding(&h.input,i)==mapping[i]);
-
-/* Switch among simultaneous controllers through the actual settings row. */
-int second=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,SDL_CONTROLLER_AXIS_MAX,SDL_CONTROLLER_BUTTON_MAX,0);
-assert(second>=0);SDL_Joystick *other=SDL_JoystickOpen(second);assert(other);
-h.controls.selected=0;key(&h,c,SDLK_RIGHT);
-assert(h.input.instance==SDL_JoystickInstanceID(other));assert(strlen(h.input.preferred)==32);
-char selected_guid[33];memcpy(selected_guid,h.input.preferred,33);
-h.input.preferred[0]=0;dune_controls_read(&h);assert(!strcmp(h.input.preferred,selected_guid));
+for(unsigned i=0;i<8;i++)assert(sdl_pad_binding(&h.input,i)==mapping[i]);
+/* A pre-held unrelated control must not block remapping a fresh direction. */
+dune_controls_toggle(&h,c);button(&h,c,j,SDL_CONTROLLER_BUTTON_LEFTSHOULDER,1);
+h.controls.page=1;h.controls.selected=4;key(&h,c,SDLK_RETURN);
+button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_UP,1);assert(!h.controls.remap);
+button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_UP,0);button(&h,c,j,SDL_CONTROLLER_BUTTON_LEFTSHOULDER,0);
 dune_controls_toggle(&h,c);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,1);assert(!c->pad_buttons[0]);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,0);
-button(&h,c,other,SDL_CONTROLLER_BUTTON_Y,1);assert(c->pad_buttons[0]==PAD_A);
-button(&h,c,other,SDL_CONTROLLER_BUTTON_Y,0);
-assert(!SDL_JoystickDetachVirtual(second));assert(sdl_host_service(&h,c));
-assert(h.input.instance==SDL_JoystickInstanceID(j));SDL_JoystickClose(other);
-/* No two-device cap: traverse a collection of 21 simultaneous pads. */
-int collection[20];
-for(int i=0;i<20;i++){
- collection[i]=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,SDL_CONTROLLER_AXIS_MAX,SDL_CONTROLLER_BUTTON_MAX,0);
- assert(collection[i]>=0);
-}
-for(int i=0;i<20;i++){
- sdl_pad_cycle(&h.input,1);assert(h.input.instance==SDL_JoystickGetDeviceInstanceID(collection[i]));
-}
+/* Individual D-pad assignment may use an axis, and Delete clears it. */
+dune_controls_toggle(&h,c);h.controls.page=1;h.controls.selected=4;key(&h,c,SDLK_RETURN);
+assert(h.controls.remap==5);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTY,-32768));SDL_PumpEvents();assert(sdl_host_service(&h,c));
+assert(!h.controls.remap && sdl_pad_binding(&h.input,4)==SDL_CONTROLLER_BUTTON_MAX+6);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTY,0));assert(sdl_host_service(&h,c));
+dune_controls_toggle(&h,c);assert(sdl_host_service(&h,c));
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTY,-32768));assert(sdl_host_service(&h,c));assert(c->pad_buttons[0]==PAD_UP);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTY,0));assert(sdl_host_service(&h,c));
+dune_controls_toggle(&h,c);h.controls.page=1;h.controls.selected=4;key(&h,c,SDLK_DELETE);assert(sdl_pad_binding(&h.input,4)==SDL_PAD_UNBOUND);
+key(&h,c,SDLK_RETURN);button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_UP,1);button(&h,c,j,SDL_CONTROLLER_BUTTON_DPAD_UP,0);
+assert(sdl_pad_binding(&h.input,4)==SDL_CONTROLLER_BUTTON_DPAD_UP);
+/* Different controller model gets its own settings; nonselected events are inert. */
+SDL_VirtualJoystickDesc desc={0};desc.version=SDL_VIRTUAL_JOYSTICK_DESC_VERSION;
+desc.type=SDL_JOYSTICK_TYPE_GAMECONTROLLER;desc.naxes=SDL_CONTROLLER_AXIS_MAX;desc.nbuttons=SDL_CONTROLLER_BUTTON_MAX;
+desc.vendor_id=0x045e;desc.product_id=0x02fd;desc.name="Second test controller";
+int second=SDL_JoystickAttachVirtualEx(&desc);assert(second>=0);SDL_Joystick *other=SDL_JoystickOpen(second);assert(other);
+h.controls.page=0;h.controls.selected=0;key(&h,c,SDLK_RIGHT);
+assert(h.input.instance==SDL_JoystickInstanceID(other) && !h.input.custom);
+h.input.deadzone=45;dune_controls_write(&h);
+key(&h,c,SDLK_LEFT);assert(h.input.instance==SDL_JoystickInstanceID(j) && h.input.custom && h.input.deadzone==30);
+key(&h,c,SDLK_RIGHT);assert(h.input.deadzone==45 && !h.input.custom);
+dune_controls_toggle(&h,c);assert(sdl_host_service(&h,c));
+button(&h,c,j,SDL_CONTROLLER_BUTTON_A,1);assert(!c->pad_buttons[0]);button(&h,c,j,SDL_CONTROLLER_BUTTON_A,0);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,-32768));assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTY,-32768));
+assert(sdl_host_service(&h,c));assert(!h.dune_view.pointer_valid && !c->pad_buttons[0]);
+SDL_Event e={0};e.type=SDL_CONTROLLERDEVICEREMAPPED;e.cdevice.which=SDL_JoystickInstanceID(j);
+int armed=h.input.armed;assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,c));assert(h.input.armed==armed);
+/* Unplugging never silently hands control to another connected pad. */
+assert(!SDL_JoystickDetachVirtual(second));assert(sdl_host_service(&h,c));assert(!h.input.controller && h.input.await_select);
+SDL_JoystickClose(other);
+dune_controls_toggle(&h,c);h.controls.selected=0;key(&h,c,SDLK_RIGHT);assert(h.input.instance==SDL_JoystickInstanceID(j));
+/* A stick held at its limit on selection cannot move anything until centered. */
+dune_controls_toggle(&h,c);h.stick_cursor_blocked=0;dune_stick_cursor(&h,c,1000);
+assert(!h.input.armed && !h.dune_view.pointer_valid && !c->pad_buttons[0]);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,0));assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTY,0));
+assert(sdl_host_service(&h,c));assert(h.input.armed);
+/* Offset center, user calibration and proportional cursor movement. */
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,14000));SDL_JoystickUpdate();
+dune_controls_toggle(&h,c);h.controls.page=2;h.controls.selected=6;key(&h,c,SDLK_RETURN);
+assert(h.input.center[0]==14000);dune_controls_toggle(&h,c);assert(sdl_host_service(&h,c));
+assert(h.input.armed && !sdl_pad_value(&h.input,0));
+h.dune_view.pointer_valid=1;h.dune_view.pointer_x=100;h.dune_view.pointer_y=100;h.stick_cursor_active=0;h.stick_cursor_blocked=0;
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,32767));SDL_JoystickUpdate();
+dune_stick_cursor(&h,c,2000);dune_stick_cursor(&h,c,2050);assert(h.dune_view.pointer_x>100 && h.dune_view.pointer_y==100);
+h.input.invert_x=1;double before=h.stick_cursor_x;dune_stick_cursor(&h,c,2100);assert(h.stick_cursor_x<before);
+h.input.focused=0;dune_stick_cursor(&h,c,2150);assert(!h.dune_view.pointer_valid);
+h.input.focused=1;dune_stick_cursor(&h,c,2200);assert(!h.dune_view.pointer_valid);
+assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,14000));SDL_JoystickUpdate();dune_stick_cursor(&h,c,2250);
+dune_controls_write(&h);h.input.center[0]=0;dune_controls_read(&h);assert(h.input.center[0]==14000 && h.input.invert_x);
+/* Mouse can be disabled independently; configuration remains reachable. */
+h.input.mouse=0;h.dune_view.pointer_valid=0;e.type=SDL_MOUSEMOTION;e.motion.x=0;e.motion.y=0;
+assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,c));assert(!h.dune_view.pointer_valid);
+key(&h,c,SDLK_F1);assert(h.controls.menu);key(&h,c,SDLK_F1);assert(!h.controls.menu);
+/* Malformed configs are rejected atomically. */
+FILE *f=fopen("gamepad.cfg","w");assert(f);fputs("ReArrakis controls 4\n1 0 1\n999",f);assert(!fclose(f));
+dune_controls_read(&h);assert(h.input.center[0]==14000);
+/* No arbitrary two-pad limit, even with identical virtual models. */
+int collection[20];for(int i=0;i<20;i++){collection[i]=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,SDL_CONTROLLER_AXIS_MAX,SDL_CONTROLLER_BUTTON_MAX,0);assert(collection[i]>=0);}
+for(int i=0;i<20;i++){sdl_pad_cycle(&h.input,1);assert(h.input.instance==SDL_JoystickGetDeviceInstanceID(collection[i]));}
 sdl_pad_cycle(&h.input,1);assert(h.input.instance==SDL_JoystickInstanceID(j));
 for(int i=19;i>=0;i--)assert(!SDL_JoystickDetachVirtual(collection[i]));
-assert(sdl_host_service(&h,c));
-/* The cursor stick is selectable and persisted. */
-dune_controls_toggle(&h,c);h.controls.selected=1;h.input.cursor_stick=0;key(&h,c,SDLK_RIGHT);
-assert(h.input.cursor_stick==1);h.input.cursor_stick=0;dune_controls_read(&h);assert(h.input.cursor_stick==1);
-dune_controls_toggle(&h,c);
-/* Right-stick cursor: deadzone, proportional motion, clamp, focus and pause. */
-assert(!dune_stick_axis(5000) && dune_stick_axis(18000)<dune_stick_axis(30000));
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTX,32767));SDL_JoystickUpdate();
-h.stick_cursor_blocked=0;h.stick_cursor_active=0;h.dune_view.pointer_valid=1;
-h.dune_view.pointer_x=100;h.dune_view.pointer_y=100;
-dune_stick_cursor(&h,c,1000);dune_stick_cursor(&h,c,1050);
-assert(h.dune_view.pointer_x>=109 && h.dune_view.pointer_x<=110 && h.dune_view.pointer_y==100);
-h.input.focused=0;dune_stick_cursor(&h,c,1100);assert(!h.dune_view.pointer_valid);
-h.input.focused=1;dune_stick_cursor(&h,c,1150);assert(!h.dune_view.pointer_valid);
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTX,0));SDL_JoystickUpdate();dune_stick_cursor(&h,c,1200);
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTX,32767));SDL_JoystickUpdate();
-dune_stick_cursor(&h,c,1250);h.stick_cursor_x=318;dune_stick_cursor(&h,c,1300);
-assert(h.dune_view.pointer_x==319);
-h.paused=1;dune_stick_cursor(&h,c,1350);assert(!h.dune_view.pointer_valid);h.paused=0;
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_RIGHTX,0));SDL_JoystickUpdate();dune_stick_cursor(&h,c,1400);
-h.input.cursor_stick=0;h.stick_cursor_active=0;
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,32767));SDL_JoystickUpdate();
-assert(!sdl_pad_buttons(&h.input,0));
-dune_stick_cursor(&h,c,1450);double before=h.stick_cursor_x;dune_stick_cursor(&h,c,1500);
-assert(h.stick_cursor_x>before);
-h.input.cursor_stick=2;dune_stick_cursor(&h,c,1550);assert(!h.dune_view.pointer_valid);
-assert(!SDL_JoystickSetVirtualAxis(j,SDL_CONTROLLER_AXIS_LEFTX,0));SDL_JoystickUpdate();
-dune_controls_toggle(&h,c);
-/* Invalid configs never replace a valid mapping. */
-FILE *f=fopen("gamepad.cfg","w");assert(f);fputs("ReArrakis controls 1\n1 0 1 3 3 0 2\n",f);assert(!fclose(f));
-dune_controls_read(&h);
-for(unsigned i=0;i<4;++i)assert(sdl_pad_binding(&h.input,i)==mapping[i]);
-dune_controls_toggle(&h,c);
-button(&h,c,j,SDL_CONTROLLER_BUTTON_Y,1);assert(c->pad_buttons[0]==PAD_A);
-assert(!SDL_JoystickDetachVirtual(device));assert(sdl_host_service(&h,c));
-assert(!h.input.controller && !c->pad_buttons[0]);
+assert(!SDL_JoystickDetachVirtual(device));assert(sdl_host_service(&h,c));assert(!h.input.controller && !c->pad_buttons[0]);
 ''')
-

@@ -129,28 +129,23 @@ use the same world scale as rendering, including drawable-pixel scaling.
 The ROM-free SDL regression covers all four edges at 50%, 75% and 100% zoom,
 stopping in the interior and cancelling on window leave.
 
-## SDL gamepad input (debug-derived local branch)
+## SDL gamepad settings (debug-derived branch)
 
-Gamepad polling and hotplug use SDL2, with D-pad/left-stick movement and an
-F10/Back settings menu for presets, enable/disable and button assignment.
-Settings persist separately from console state. A ROM-free virtual-controller
-check covers assignment, persistence, duplicate rejection, held-button
-suppression, focus loss, deadzone and disconnect. Data Frog USB button events
-were observed through SDL on macOS; in-game physical-controller validation
-is still pending. The active controller can be chosen in F10; one controller supplies input at a time.
+Esc, F1 and F10 open recoverable settings; keyboard and mouse remain available
+regardless of controller bindings. One selected instance supplies game input.
+Other devices and their remapping events are ignored. Disconnecting it stops
+pad input until the user chooses another device, including with identical models.
 
-The settings illustration now traces the shell and button positions from
-[Evan-Amos's public-domain controller photograph](https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg).
-The original aspect ratio and concave grip cutout are retained; menu choices
-sit beside the pad. The photo is a reference only, with no image runtime dependency.
+Buttons and D-pad directions can be assigned individually or in an eight-step
+wizard, including signed axes and triggers. Separate model profiles store
+bindings, cursor/digital modes, mouse enable, custom axes, inversion, deadzone,
+sensitivity and calibrated centers. Live axis values make drift diagnosable.
+Analog input must return to its calibrated center after device selection.
+Models sharing an SDL GUID share a profile; active instances remain isolated.
 
-Controller selection now cycles all recognized SDL devices and remembers the
-model GUID. Cursor input can use the left stick (default), right stick, or
-neither, with proportional speed and a deadzone. Virtual-device checks cover
-switching, non-selected input isolation, fallback on unplug, persisted choice,
-cursor movement and suspension. Physical Xbox Bluetooth gameplay is pending.
-
-The final controller drawing uses a consistent front view, checked against
-[this original three-button pad photograph](https://www.gamerlifestore.com/products/sega-genesis-3-button-controller-original).
-The shell, circular D-pad recess, angled action-button recess and Start are
-traced together. Curves render at drawable resolution; no photo is bundled.
+The settings drawing uses a consistent front-view reference of an original
+three-button Sega controller. Rendering has no image-library dependency.
+Virtual tests cover 21 controllers, inactive-device isolation, disconnect,
+manual direction assignment, per-model profiles, calibration and malformed
+configuration. Physical Xbox Bluetooth gameplay and the reported cursor drift
+still need verification on the user's running app.

@@ -5,8 +5,9 @@
 #include <SDL.h>
 #include "gamepad_sdl.h"
 typedef struct {
-    int menu,selected,remap,was_paused;
-    uint32_t held;uint8_t pending[4];char message[96];
+    int menu,selected,remap,was_paused,page,assign_one;
+    SDL_JoystickID profile_instance;
+    uint64_t held;uint8_t pending[8];char message[96];
 } DuneControls;
 
 #ifndef GENESIS_WINDOW_TITLE
@@ -19,7 +20,7 @@ typedef struct {
 #ifdef GENESIS_DUNE_MOUSE
     double stick_cursor_x,stick_cursor_y;
     Uint32 stick_cursor_tick;
-    int stick_cursor_active,stick_cursor_blocked,stick_cursor_speed;
+    int stick_cursor_active,stick_cursor_blocked;
     DuneMouse dune_mouse;
     DuneView dune_view;
     SDL_Texture *dune_world,*dune_hud;
@@ -69,15 +70,13 @@ static int sdl_host_open(SDLHost *h) {
 #ifdef GENESIS_DUNE_MOUSE
     h->dune_mouse.enabled=1;h->dune_view.zoom=100;
     h->dune_volume=dune_audio_volume(getenv("DUNE_VOLUME"));
-    h->stick_cursor_speed=100;
-    const char *speed=getenv("DUNE_STICK_SPEED");
-    if(speed){char *end;long value=strtol(speed,&end,10);if(end!=speed && !*end && value>=25 && value<=300)h->stick_cursor_speed=(int)value;}
+
 #endif
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS)) return sdl_host_error(h,"initialization failed");
-    h->input.enabled=1;h->input.focused=1;h->input.instance=-1;
+    sdl_pad_defaults(&h->input);h->input.focused=1;h->input.instance=-1;h->controls.profile_instance=-2;
     dune_controls_read(h);
     if(SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER))fprintf(stderr,"gamepad unavailable: %s\n",SDL_GetError());
-    else {SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");sdl_pad_connect(&h->input);}
+    else {SDL_GameControllerAddMappingsFromFile("gamecontrollerdb.txt");sdl_pad_connect(&h->input);dune_controls_profile(h);}
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY,"nearest");
     int initial_width=960,initial_height=672;
 #ifdef GENESIS_DUNE_MOUSE
@@ -88,7 +87,7 @@ static int sdl_host_open(SDLHost *h) {
         if(initial_width<320)initial_width=320;if(initial_height<224)initial_height=224;
     }
 #endif
-    h->window=SDL_CreateWindow(GENESIS_WINDOW_TITLE,SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,
+    h->window=SDL_CreateWindow(GENESIS_WINDOW_TITLE " - Esc / F1: Controller settings",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,
         initial_width,initial_height,SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
     if (!h->window) return sdl_host_error(h,"window creation failed");
     h->renderer=SDL_CreateRenderer(h->window,-1,SDL_RENDERER_ACCELERATED);
@@ -149,21 +148,16 @@ static uint8_t sdl_pad_key(SDL_Keycode key) {
 }
 #include "dune_mouse_sdl.h"
 #ifdef GENESIS_DUNE_MOUSE
-static double dune_stick_axis(int value) {
-    if(value>=-10000 && value<=10000)return 0;
-    double normalized=(value>0?value-10000:value+10000)/22768.0;
-    return normalized*(normalized<0?-normalized:normalized);
-}
 /* Use the existing mouse-intent path; never move the desktop pointer. */
 static void dune_stick_cursor(SDLHost *h,CPU *c,Uint32 now) {
     Uint32 elapsed=now-h->stick_cursor_tick;h->stick_cursor_tick=now;
     SDL_GameController *pad=h->input.controller;
     double dx=0,dy=0;
     if(pad && SDL_GameControllerGetAttached(pad) && h->input.cursor_stick!=2) {
-        dx=dune_stick_axis(SDL_GameControllerGetAxis(pad,h->input.cursor_stick?SDL_CONTROLLER_AXIS_RIGHTX:SDL_CONTROLLER_AXIS_LEFTX));
-        dy=dune_stick_axis(SDL_GameControllerGetAxis(pad,h->input.cursor_stick?SDL_CONTROLLER_AXIS_RIGHTY:SDL_CONTROLLER_AXIS_LEFTY));
+        dx=sdl_pad_value(&h->input,h->input.axis_x);if(h->input.invert_x)dx=-dx;dx*=dx<0?-dx:dx;
+        dy=sdl_pad_value(&h->input,h->input.axis_y);if(h->input.invert_y)dy=-dy;dy*=dy<0?-dy:dy;
     }
-    if(!pad || !SDL_GameControllerGetAttached(pad) || !h->input.enabled || !h->input.focused || h->paused || h->stopped || h->controls.menu) {
+    if(!pad || !SDL_GameControllerGetAttached(pad) || !h->input.enabled || !h->input.focused || h->paused || h->stopped || h->controls.menu || !sdl_pad_ready(&h->input)) {
         if(h->stick_cursor_active){dune_mouse_reset(&h->dune_mouse);h->dune_view.pointer_valid=0;}
         h->stick_cursor_active=0;h->stick_cursor_blocked=dx!=0 || dy!=0;return;
     }
@@ -181,7 +175,7 @@ static void dune_stick_cursor(SDLHost *h,CPU *c,Uint32 now) {
         h->stick_cursor_active=1;elapsed=0;
     }
     if(elapsed>50)elapsed=50;
-    double step=elapsed*.2*(height/224.0)*(h->stick_cursor_speed/100.0);
+    double step=elapsed*.2*(height/224.0)*(h->input.speed/100.0);
     h->stick_cursor_x+=dx*step;h->stick_cursor_y+=dy*step;
     if(h->stick_cursor_x<0)h->stick_cursor_x=0;if(h->stick_cursor_x>w-1)h->stick_cursor_x=w-1;
     if(h->stick_cursor_y<0)h->stick_cursor_y=0;if(h->stick_cursor_y>height-1)h->stick_cursor_y=height-1;
@@ -232,6 +226,7 @@ static void sdl_host_stop(SDLHost *h, const CPU *c) {
     SDL_SetWindowTitle(h->window,title);
 }
 static int sdl_host_service(SDLHost *h, CPU *c) {
+    dune_controls_profile(h);
     int redraw=0;
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -243,18 +238,21 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
         }
 #endif
         if(dune_controls_capture(h,&event)){redraw=1;continue;}
-        if(sdl_pad_event(&h->input,&event,h->controls.menu)){redraw=1;continue;}
+        if(sdl_pad_event(&h->input,&event,h->controls.menu)){dune_controls_profile(h);redraw=1;continue;}
         if(event.type==SDL_KEYUP)h->input.keyboard&=(uint8_t)~sdl_pad_key(event.key.keysym.sym);
         if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_FOCUS_LOST){
-            h->input.focused=0;sdl_pad_clear(&h->input);c->pad_buttons[0]=0;
+            h->input.focused=0;h->input.armed=0;sdl_pad_clear(&h->input);c->pad_buttons[0]=0;
         }
         if(event.type==SDL_WINDOWEVENT && event.window.event==SDL_WINDOWEVENT_FOCUS_GAINED){
             h->input.focused=1;sdl_pad_clear(&h->input);
         }
         if(dune_controls_event(h,c,&event)){redraw=1;continue;}
 #ifdef GENESIS_DUNE_MOUSE
-        if(dune_view_event(h,c,&event)){redraw=1;continue;}
-        dune_mouse_event(h,c,&event);
+        int mouse_event=event.type==SDL_MOUSEMOTION || event.type==SDL_MOUSEBUTTONDOWN || event.type==SDL_MOUSEBUTTONUP || event.type==SDL_MOUSEWHEEL;
+        if(!mouse_event || h->input.mouse){
+            if(dune_view_event(h,c,&event)){redraw=1;continue;}
+            dune_mouse_event(h,c,&event);
+        }
 #endif
         if (event.type==SDL_QUIT) return 0;
         if (event.type==SDL_WINDOWEVENT) {

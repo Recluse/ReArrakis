@@ -689,3 +689,35 @@ movement.
 Final validation: 292 tests passed, one Linux-only check skipped. The updated
 21-pad/controller test and four Dune adapter checks passed separately after
 the final cursor-visibility change. Native build and app signature verified.
+
+## 2026-10-07 — recoverable configuration and exclusive controller input
+
+User reported an uncontrolled upper-left cursor and could not find settings.
+Two code-level issues were corrected: disconnect previously selected another
+available device, and remapping events from inactive controllers cleared active
+input. Selection now pins one instance; disconnect requires a manual replacement,
+even for matching GUIDs. Initial off-center analog state cannot drive the game
+until the configured axes return to their calibrated deadzone. The exact cause
+of the user's physical drift remains unverified without live axis readings.
+
+Esc/F1/F10 open settings. Buttons / D-pad supports eight individual assignments,
+an all-controls wizard, clear, duplicate swap, signed axes and triggers. Axes
+settings expose X/Y choice, inversion, deadzone, sensitivity, center calibration
+and RAW/CENTER telemetry. Analog menu navigation is disabled so drift cannot
+change settings. Mouse gameplay can be disabled while settings keep mouse input.
+Config version 4 adds per-GUID profiles, with versions 1–3 accepted and preserved
+for initial migration. Identical GUIDs still share a profile; runtime selection
+uses instance IDs. Shared cursor/digital axes are mutually exclusive.
+
+Implementation references: [SDL axis ranges and deadzones](https://wiki.libsdl.org/SDL2/SDL_GameControllerAxis),
+[SDL instance IDs](https://wiki.libsdl.org/SDL2/SDL_JoystickGetDeviceInstanceID),
+and [RetroArch controller/remap separation](https://docs.libretro.com/guides/input-and-controls/).
+These inform the implementation; RetroArch is not a dependency.
+
+Validation: the complete 292-test run passed with one Linux-only /dev/full
+skip. A final capture regression also passed: a pre-held unrelated button or
+axis no longer prevents binding a fresh control; that held control itself must
+be released before it can be assigned. Both ReArrakis.app and
+ReArrakis-Gamepad.app are rebuilt locally, with previous versions kept in build/.
+Native compilation and ad-hoc signature checks passed. Live physical drift
+verification remains pending.

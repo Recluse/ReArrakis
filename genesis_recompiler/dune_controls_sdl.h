@@ -116,35 +116,67 @@ static void dune_controls_pad(SDLHost *h,int x,int y,int scale) {
         dune_controls_text(r,px-2*small,py-15*scale,small,label[i],1);
     }
 }
-static void dune_controls_read(SDLHost *h) {
-    FILE *f=fopen("gamepad.cfg","r");if(!f)return;
-    unsigned version,enabled,layout,custom,b[4],stick=0;char extra,guid[33]={0};
-    int n=fscanf(f,"ReArrakis controls %u %u %u %u %u %u %u %u",&version,&enabled,&layout,&custom,&b[0],&b[1],&b[2],&b[3]);
-    int valid=n==8 && (version>=1 && version<=3);
-    if(valid && version==3)valid=fscanf(f," %u",&stick)==1 && stick<=2;
-    if(valid && version>=2) {
+static int dune_controls_read_file(SDLPadInput *p,const char *path) {
+    FILE *f=fopen(path,"r");if(!f)return 0;
+    SDLPadInput next=*p;sdl_pad_defaults(&next);
+    unsigned version=0,b[8]={0};char extra,guid[33]={0};
+    int valid=fscanf(f,"ReArrakis controls %u",&version)==1 && version>=1 && version<=4;
+    if(valid)valid=fscanf(f," %d %d %d",&next.enabled,&next.layout,&next.custom)==3;
+    for(int i=0;valid && i<(version==4?8:4);i++)valid=fscanf(f," %u",&b[i])==1 && b[i]<=255;
+    for(int i=0;i<8;i++)next.binding[i]=(uint8_t)(i>=4 && version<4?SDL_CONTROLLER_BUTTON_DPAD_UP+i-4:b[i]);
+    if(valid && version==3)valid=fscanf(f," %d",&next.cursor_stick)==1;
+    if(valid && version==4){
+        valid=fscanf(f," %d %d %d %d %d %d %d %d %d",&next.cursor_stick,&next.digital,&next.mouse,&next.axis_x,&next.axis_y,&next.invert_x,&next.invert_y,&next.deadzone,&next.speed)==9;
+        for(int i=0;valid && i<SDL_CONTROLLER_AXIS_MAX;i++)valid=fscanf(f," %d",&next.center[i])==1 && next.center[i]>=-32768 && next.center[i]<=32767;
+    }else if(next.cursor_stick==1){next.axis_x=2;next.axis_y=3;}
+    if(valid && version>=2){
         valid=fscanf(f," %32s",guid)==1 && strlen(guid)==32;
         for(int i=0;valid && i<32;i++)valid=(guid[i]>='0' && guid[i]<='9') || (guid[i]>='a' && guid[i]<='f');
     }
     if(fscanf(f," %c",&extra)==1)valid=0;fclose(f);
-    if(!valid || enabled>1 || layout>1 || custom>1)return;
-    uint8_t binding[4];for(unsigned i=0;i<4;i++){if(b[i]>=SDL_CONTROLLER_BUTTON_MAX)return;binding[i]=(uint8_t)b[i];}
-    if(!sdl_pad_bindings_valid(binding))return;
-    h->input.cursor_stick=(int)stick;h->input.enabled=enabled;h->input.layout=layout;h->input.custom=custom;memcpy(h->input.binding,binding,4);memcpy(h->input.preferred,guid,33);
+    if(!valid || next.enabled<0 || next.enabled>1 || next.layout<0 || next.layout>1 || next.custom<0 || next.custom>1 ||
+       next.cursor_stick<0 || next.cursor_stick>3 || next.digital<0 || next.digital>2 || next.mouse<0 || next.mouse>1 ||
+       next.axis_x<0 || next.axis_x>=SDL_CONTROLLER_AXIS_MAX || next.axis_y<0 || next.axis_y>=SDL_CONTROLLER_AXIS_MAX ||
+       next.invert_x<0 || next.invert_x>1 || next.invert_y<0 || next.invert_y>1 || next.deadzone<5 || next.deadzone>60 || next.speed<25 || next.speed>300 ||
+       !sdl_pad_bindings_valid(next.binding))return 0;
+    if(!strcmp(guid,"00000000000000000000000000000000"))guid[0]=0;
+    memcpy(next.preferred,guid,33);*p=next;return 1;
+}
+static void dune_controls_read(SDLHost *h) {dune_controls_read_file(&h->input,"gamepad.cfg");}
+static int dune_controls_save_file(SDLPadInput *p,const char *path) {
+    char temporary[128];snprintf(temporary,sizeof temporary,"%s.tmp",path);
+    FILE *f=fopen(temporary,"w");if(!f)return 0;
+    int ok=fprintf(f,"ReArrakis controls 4\n%d %d %d\n",p->enabled,p->layout,p->custom)>0;
+    for(int i=0;i<8;i++)if(fprintf(f,"%u ",sdl_pad_binding(p,i))<0)ok=0;
+    if(fprintf(f,"\n%d %d %d %d %d %d %d %d %d\n",p->cursor_stick,p->digital,p->mouse,p->axis_x,p->axis_y,p->invert_x,p->invert_y,p->deadzone,p->speed)<0)ok=0;
+    for(int i=0;i<SDL_CONTROLLER_AXIS_MAX;i++)if(fprintf(f,"%d ",p->center[i])<0)ok=0;
+    if(fprintf(f,"\n%s\n",p->preferred[0]?p->preferred:"00000000000000000000000000000000")<0)ok=0;
+    if(fclose(f))ok=0;
+    if(ok)ok=!rename(temporary,path);return ok;
+}
+static void dune_controls_profile_path(SDLPadInput *p,char *path,size_t size) {
+    char guid[33];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(SDL_GameControllerGetJoystick(p->controller)),guid,sizeof guid);
+    snprintf(path,size,"gamepad-%s.cfg",guid);
 }
 static void dune_controls_write(SDLHost *h) {
-    FILE *f=fopen("gamepad.cfg.tmp","w");int ok=0;
-    if(f){
-        ok=fprintf(f,"ReArrakis controls 3\n%d %d %d %u %u %u %u\n%d\n%s\n",h->input.enabled,h->input.layout,h->input.custom,
-            sdl_pad_binding(&h->input,0),sdl_pad_binding(&h->input,1),sdl_pad_binding(&h->input,2),sdl_pad_binding(&h->input,3),h->input.cursor_stick,h->input.preferred[0]?h->input.preferred:"00000000000000000000000000000000")>0;
-        if(fclose(f))ok=0;
-        if(ok)ok=!rename("gamepad.cfg.tmp","gamepad.cfg");
-    }
-    snprintf(h->controls.message,sizeof h->controls.message,ok?"Settings saved":"Could not save gamepad.cfg");
+    int ok=1;
+    if(h->input.controller){char path[80];dune_controls_profile_path(&h->input,path,sizeof path);ok=dune_controls_save_file(&h->input,path);}
+    if(!dune_controls_save_file(&h->input,"gamepad.cfg"))ok=0;
+    snprintf(h->controls.message,sizeof h->controls.message,ok?"Profile saved":"Could not save controller profile");
+}
+static void dune_controls_profile(SDLHost *h) {
+    if(h->controls.profile_instance==h->input.instance)return;
+    int initial=h->controls.profile_instance==-2;
+    if(!h->input.controller){if(!initial)h->controls.profile_instance=-1;return;}
+    h->controls.profile_instance=h->input.instance;h->controls.remap=0;
+    char preferred[33],path[80];memcpy(preferred,h->input.preferred,33);
+    dune_controls_profile_path(&h->input,path,sizeof path);
+    if(!initial)sdl_pad_defaults(&h->input);dune_controls_read_file(&h->input,path);memcpy(h->input.preferred,preferred,33);
+    h->input.armed=0;sdl_pad_clear(&h->input);
 }
 static void dune_controls_toggle(SDLHost *h,CPU *c) {
     if(h->controls.menu){h->controls.menu=0;h->controls.remap=0;h->paused=h->controls.was_paused;}
-    else{h->controls.menu=1;h->controls.was_paused=h->paused;h->paused=1;h->controls.message[0]=0;}
+    else{h->controls.menu=1;h->controls.page=0;h->controls.selected=0;h->controls.was_paused=h->paused;h->paused=1;h->controls.message[0]=0;}
     sdl_pad_clear(&h->input);c->pad_buttons[0]=0;h->fast_forward=0;
 #ifdef GENESIS_DUNE_MOUSE
     h->stick_cursor_active=0;h->stick_cursor_blocked=1;
@@ -152,80 +184,120 @@ static void dune_controls_toggle(SDLHost *h,CPU *c) {
 #endif
     sdl_host_rebase(h,c);h->last_frame=UINT64_MAX;
 }
+static uint64_t dune_controls_held(SDLPadInput *p) {
+    uint64_t held=0;
+    for(unsigned i=0;i<SDL_PAD_BIND_COUNT;i++)if(sdl_pad_down(p,i))held|=UINT64_C(1)<<i;
+    return held;
+}
 static void dune_controls_assign(SDLHost *h) {
     if(!h->input.controller || !SDL_GameControllerGetAttached(h->input.controller)){
-        snprintf(h->controls.message,sizeof h->controls.message,"Connect a supported gamepad first");return;
+        snprintf(h->controls.message,sizeof h->controls.message,"Connect and select a gamepad first");return;
     }
-    h->controls.remap=1;h->controls.held=0;h->controls.message[0]=0;
-    for(unsigned i=0;i<SDL_CONTROLLER_BUTTON_MAX && i<32;i++)
-        if(SDL_GameControllerGetButton(h->input.controller,(SDL_GameControllerButton)i))h->controls.held|=UINT32_C(1)<<i;
+    h->controls.remap=h->controls.assign_one?h->controls.selected+1:1;
+    h->controls.held=dune_controls_held(&h->input);h->controls.message[0]=0;
+    for(int i=0;i<8;i++)h->controls.pending[i]=(uint8_t)sdl_pad_binding(&h->input,i);
     sdl_pad_clear(&h->input);
 }
-/* Raw button capture precedes menu navigation, so B can be assigned too. */
+/* Capture before navigation: remapping B or the D-pad must not activate menus. */
 static int dune_controls_capture(SDLHost *h,const SDL_Event *e) {
     DuneControls *s=&h->controls;if(!s->menu || !s->remap)return 0;
     if(((e->type==SDL_CONTROLLERDEVICEREMOVED || e->type==SDL_CONTROLLERDEVICEREMAPPED) && e->cdevice.which==h->input.instance) ||
        (e->type==SDL_WINDOWEVENT && e->window.event==SDL_WINDOWEVENT_FOCUS_LOST)){
         s->remap=0;snprintf(s->message,sizeof s->message,"Assignment cancelled");return 0;
     }
-    if(e->type==SDL_KEYDOWN && !e->key.repeat && (e->key.keysym.sym==SDLK_ESCAPE || e->key.keysym.sym==SDLK_F10)){
-        s->remap=0;s->message[0]=0;return e->key.keysym.sym==SDLK_ESCAPE;
+    if(e->type==SDL_KEYDOWN && !e->key.repeat && (e->key.keysym.sym==SDLK_ESCAPE || e->key.keysym.sym==SDLK_F10 || e->key.keysym.sym==SDLK_F1)){
+        s->remap=0;s->message[0]=0;return 1;
     }
-    if(e->type==SDL_CONTROLLERBUTTONDOWN || e->type==SDL_CONTROLLERBUTTONUP){
-        if(e->cbutton.which!=h->input.instance || !h->input.focused)return 1;
-        unsigned b=e->cbutton.button;if(b>=SDL_CONTROLLER_BUTTON_MAX || b>=32)return 1;
-        uint32_t bit=UINT32_C(1)<<b;
-        if(e->type==SDL_CONTROLLERBUTTONUP){s->held&=~bit;return 1;}
-        if(b==SDL_CONTROLLER_BUTTON_BACK){s->remap=0;sdl_pad_clear(&h->input);return 1;}
-        if(s->held){s->held|=bit;return 1;}s->held|=bit;
-        if(!sdl_pad_bindable(b)){snprintf(s->message,sizeof s->message,"Button reserved for movement or menu");return 1;}
+    int button=e->type==SDL_CONTROLLERBUTTONDOWN || e->type==SDL_CONTROLLERBUTTONUP;
+    if(button || e->type==SDL_CONTROLLERAXISMOTION){
+        if((button?e->cbutton.which:e->caxis.which)!=h->input.instance || !h->input.focused)return 1;
+        uint64_t now=dune_controls_held(&h->input),fresh=now&~s->held;s->held=now;
+        if(!fresh)return 1;
+        unsigned bind=0;while(bind<SDL_PAD_BIND_COUNT && !(fresh&(UINT64_C(1)<<bind)))++bind;
+        if(!sdl_pad_bindable(bind)){snprintf(s->message,sizeof s->message,"Unsupported control - ESC cancels");return 1;}
         unsigned step=s->remap-1;
-        for(unsigned i=0;i<step;i++)if(s->pending[i]==b){snprintf(s->message,sizeof s->message,"Already assigned - choose another");return 1;}
-        s->pending[step]=(uint8_t)b;s->message[0]=0;
-        if(++s->remap==5){memcpy(h->input.binding,s->pending,4);h->input.custom=1;s->remap=0;sdl_pad_clear(&h->input);dune_controls_write(h);}
+        if(s->assign_one){
+            /* Swap a duplicate rather than silently bind two game actions. */
+            for(unsigned i=0;i<8;i++)if(i!=step && s->pending[i]==bind)s->pending[i]=s->pending[step];
+        }else for(unsigned i=0;i<step;i++)if(s->pending[i]==bind){snprintf(s->message,sizeof s->message,"Already assigned - choose another");return 1;}
+        s->pending[step]=(uint8_t)bind;s->message[0]=0;
+        if(s->assign_one || ++s->remap==9){memcpy(h->input.binding,s->pending,8);h->input.custom=1;s->remap=0;sdl_pad_clear(&h->input);dune_controls_write(h);}
         return 1;
     }
-    return e->type==SDL_CONTROLLERAXISMOTION || e->type==SDL_KEYDOWN || e->type==SDL_KEYUP || e->type==SDL_MOUSEBUTTONDOWN;
+    return e->type==SDL_KEYDOWN || e->type==SDL_KEYUP || e->type==SDL_MOUSEBUTTONDOWN;
+}
+static const char *dune_controls_actions[8]={"A","B","C","START","UP","DOWN","LEFT","RIGHT"};
+static const char *dune_controls_axes[6]={"Left X","Left Y","Right X","Right Y","Left trigger","Right trigger"};
+static int dune_controls_rows(SDLHost *h) {return h->controls.page==1?11:h->controls.page==2?9:9;}
+static void dune_controls_change(SDLHost *h,CPU *c,int direction) {
+    DuneControls *s=&h->controls;SDLPadInput *p=&h->input;int row=s->selected;
+    if(s->page==1){
+        if(row<8){s->assign_one=1;dune_controls_assign(h);return;}
+        if(row==8){s->assign_one=0;dune_controls_assign(h);return;}
+        if(row==9){p->custom=p->layout=0;}
+        if(row==10){s->page=s->selected=0;return;}
+    }else if(s->page==2){
+        if(row==0){p->axis_x=(p->axis_x+direction+6)%6;p->cursor_stick=3;}
+        if(row==1){p->axis_y=(p->axis_y+direction+6)%6;p->cursor_stick=3;}
+        if(row==2)p->invert_x=!p->invert_x;
+        if(row==3)p->invert_y=!p->invert_y;
+        if(row==4){p->deadzone+=direction*5;if(p->deadzone<5)p->deadzone=5;if(p->deadzone>60)p->deadzone=60;}
+        if(row==5){p->speed+=direction*25;if(p->speed<25)p->speed=25;if(p->speed>300)p->speed=300;}
+        if(row==6){
+            if(!p->controller){snprintf(s->message,sizeof s->message,"No controller selected");return;}
+            for(int i=0;i<SDL_CONTROLLER_AXIS_MAX;i++)p->center[i]=SDL_GameControllerGetAxis(p->controller,(SDL_GameControllerAxis)i);
+        }
+        if(row==7){memset(p->center,0,sizeof p->center);p->deadzone=30;p->speed=100;p->invert_x=p->invert_y=0;p->axis_x=0;p->axis_y=1;p->cursor_stick=0;}
+        if(row==8){s->page=s->selected=0;return;}
+    }else{
+        if(row==0){dune_controls_write(h);if(s->profile_instance==-2)s->profile_instance=-1;sdl_pad_cycle(p,direction);dune_controls_profile(h);}
+        if(row==1)p->enabled=!p->enabled;
+        if(row==2){p->cursor_stick=(p->cursor_stick+direction+3)%3;if(p->cursor_stick<2){p->axis_x=p->cursor_stick*2;p->axis_y=p->axis_x+1;}}
+        if(row==3)p->digital=(p->digital+direction+3)%3;
+        if(row==4)p->mouse=!p->mouse;
+        if(row==5){s->page=1;s->selected=0;return;}
+        if(row==6){s->page=2;s->selected=0;return;}
+        if(row==7){dune_controls_toggle(h,c);return;}
+        if(row==8){SDL_Event quit={0};quit.type=SDL_QUIT;SDL_PushEvent(&quit);return;}
+    }
+    if(p->cursor_stick!=2 && p->digital){
+        int a=p->digital==1?0:2;
+        if(p->axis_x==a || p->axis_x==a+1 || p->axis_y==a || p->axis_y==a+1){
+            if(s->page==0 && row==3)p->cursor_stick=2;else p->digital=0;
+        }
+    }
+    p->armed=0;sdl_pad_clear(p);c->pad_buttons[0]=0;
+#ifdef GENESIS_DUNE_MOUSE
+    h->stick_cursor_active=0;h->stick_cursor_blocked=1;h->dune_view.pointer_valid=0;dune_mouse_reset(&h->dune_mouse);
+#endif
+    dune_controls_write(h);
 }
 static int dune_controls_event(SDLHost *h,CPU *c,const SDL_Event *e) {
     DuneControls *s=&h->controls;
-    if(e->type==SDL_KEYDOWN && !e->key.repeat && e->key.keysym.sym==SDLK_F10){dune_controls_toggle(h,c);return 1;}
-    if(!s->menu)return 0;
-    if(e->type==SDL_QUIT || e->type==SDL_WINDOWEVENT)return 0;
-    int activate=0;
     if(e->type==SDL_KEYDOWN && !e->key.repeat){
         SDL_Keycode key=e->key.keysym.sym;
-        if(key==SDLK_ESCAPE){dune_controls_toggle(h,c);return 1;}
-        if(key==SDLK_UP)s->selected=(s->selected+6)%7;
-        if(key==SDLK_DOWN)s->selected=(s->selected+1)%7;
-        activate=key==SDLK_RETURN || key==SDLK_LEFT || key==SDLK_RIGHT;
+        if(key==SDLK_F10 || key==SDLK_F1 || (!s->menu && key==SDLK_ESCAPE)){dune_controls_toggle(h,c);return 1;}
+    }
+    if(!s->menu)return 0;
+    if(e->type==SDL_QUIT || e->type==SDL_WINDOWEVENT)return 0;
+    if(e->type==SDL_KEYDOWN && !e->key.repeat){
+        SDL_Keycode key=e->key.keysym.sym;int rows=dune_controls_rows(h);
+        if(key==SDLK_ESCAPE){if(s->page){s->page=s->selected=0;}else dune_controls_toggle(h,c);return 1;}
+        if(key==SDLK_UP)s->selected=(s->selected+rows-1)%rows;
+        if(key==SDLK_DOWN)s->selected=(s->selected+1)%rows;
+        if(s->page==1 && s->selected<8 && (key==SDLK_DELETE || key==SDLK_BACKSPACE)){
+            for(int i=0;i<8;i++)h->input.binding[i]=(uint8_t)sdl_pad_binding(&h->input,i);
+            h->input.custom=1;h->input.binding[s->selected]=SDL_PAD_UNBOUND;dune_controls_write(h);
+        }
+        if(key==SDLK_RETURN || key==SDLK_LEFT || key==SDLK_RIGHT)dune_controls_change(h,c,key==SDLK_LEFT?-1:1);
     }
     if(e->type==SDL_MOUSEBUTTONDOWN && e->button.button==SDL_BUTTON_LEFT){
         int ww,wh,w,hg;SDL_GetWindowSize(h->window,&ww,&wh);SDL_GetRendererOutputSize(h->renderer,&w,&hg);
         if(ww<=0 || wh<=0)return 1;
         int scale=w/320;if(hg/224<scale)scale=hg/224;if(scale<1)scale=1;
-        int x=e->button.x*w/ww-(w-320*scale)/2,y=e->button.y*hg/wh-(hg-224*scale)/2;
-        if(x>=200*scale && x<308*scale && y>=54*scale && y<166*scale){s->selected=(y/scale-54)/16;activate=1;}
-    }
-    if(activate){
-        if(s->selected==0){
-            sdl_pad_cycle(&h->input,e->type==SDL_KEYDOWN && e->key.keysym.sym==SDLK_LEFT?-1:1);
-#ifdef GENESIS_DUNE_MOUSE
-            h->stick_cursor_active=0;h->stick_cursor_blocked=1;
-#endif
-        }
-        if(s->selected==1){
-            h->input.cursor_stick=(h->input.cursor_stick+(e->type==SDL_KEYDOWN && e->key.keysym.sym==SDLK_LEFT?2:1))%3;
-#ifdef GENESIS_DUNE_MOUSE
-            h->stick_cursor_active=0;h->stick_cursor_blocked=1;
-#endif
-        }
-        if(s->selected==6){dune_controls_toggle(h,c);return 1;}
-        if(s->selected==4){dune_controls_assign(h);return 1;}
-        if(s->selected==2)h->input.enabled=!h->input.enabled;
-        if(s->selected==3){h->input.layout=!h->input.layout;h->input.custom=0;}
-        if(s->selected==5){h->input.cursor_stick=0;h->input.layout=0;h->input.custom=0;h->input.enabled=1;}
-        sdl_pad_clear(&h->input);dune_controls_write(h);
+        int x=(e->button.x*w/ww-(w-320*scale)/2)/scale,y=(e->button.y*hg/wh-(hg-224*scale)/2)/scale;
+        int left=s->page?12:200,step=s->page?12:13;
+        if(x>=left && x<308 && y>=48 && y<48+dune_controls_rows(h)*step){s->selected=(y-48)/step;dune_controls_change(h,c,x<left+18?-1:1);}
     }
     return 1;
 }
@@ -236,33 +308,43 @@ static void dune_controls_draw(SDLHost *h) {
     SDL_RenderSetLogicalSize(h->renderer,0,0);SDL_RenderSetScale(h->renderer,1,1);SDL_RenderSetViewport(h->renderer,NULL);
     SDL_SetRenderDrawColor(h->renderer,20,24,30,255);SDL_RenderClear(h->renderer);
     SDL_SetRenderDrawColor(h->renderer,240,214,140,255);
-    dune_controls_text(h->renderer,x+12*scale,y+12*scale,scale,"GAMEPAD SETTINGS - F10",48);
-    const char *name=h->input.controller?SDL_GameControllerName(h->input.controller):"No supported controller connected";
-    dune_controls_text(h->renderer,x+12*scale,y+32*scale,scale,name?name:"Controller",48);
-    dune_controls_pad(h,x,y,scale);
+    DuneControls *s=&h->controls;SDLPadInput *p=&h->input;
+    dune_controls_text(h->renderer,x+12*scale,y+12*scale,scale,s->page==1?"BUTTONS AND D-PAD":s->page==2?"ANALOG AXES AND CALIBRATION":"CONTROLLER SETTINGS - ESC / F1",48);
+    const char *name=p->controller?SDL_GameControllerName(p->controller):"Selected pad disconnected - choose Pad";
+    dune_controls_text(h->renderer,x+12*scale,y+30*scale,scale,name?name:"Controller",48);
+    if(!s->page)dune_controls_pad(h,x,y,scale);
     SDL_SetRenderDrawColor(h->renderer,240,214,140,255);
-    char text[96];const char *actions[4]={"A","B","C","START"};
     int count=0,chosen=0;
-    for(int i=0;i<SDL_NumJoysticks();i++)if(SDL_IsGameController(i)){
-        ++count;if(SDL_JoystickGetDeviceInstanceID(i)==h->input.instance)chosen=count;
-    }
-    char device[32];snprintf(device,sizeof device,"Pad: %d/%d",chosen,count);
-    for(int i=0;i<7;i++){
-        if(h->controls.remap){
-            if(i<4)snprintf(text,sizeof text,"%s %s: %s",h->controls.remap==i+1?"-":" ",actions[i],i<h->controls.remap-1?sdl_pad_label(h->controls.pending[i]):"...");
-            else snprintf(text,sizeof text,i==4?"Release to assign":"");
+    for(int i=0;i<SDL_NumJoysticks();i++)if(SDL_IsGameController(i)){++count;if(SDL_JoystickGetDeviceInstanceID(i)==p->instance)chosen=count;}
+    char text[96],value[80];
+    for(int i=0;i<dune_controls_rows(h);i++){
+        value[0]=0;
+        if(s->page==1){
+            if(i<8)snprintf(value,sizeof value,"%s: %s",dune_controls_actions[i],s->remap==i+1?"PRESS CONTROL...":sdl_pad_label(sdl_pad_binding(p,i)));
+            else snprintf(value,sizeof value,"%s",i==8?"Assign all eight":i==9?"Reset buttons":"Back");
+        }else if(s->page==2){
+            if(i==0 || i==1)snprintf(value,sizeof value,"Cursor %c axis: %s",i?'Y':'X',dune_controls_axes[i?p->axis_y:p->axis_x]);
+            if(i==2 || i==3)snprintf(value,sizeof value,"Invert %c: %s",i==2?'X':'Y',(i==2?p->invert_x:p->invert_y)?"Yes":"No");
+            if(i==4)snprintf(value,sizeof value,"Deadzone: %d percent",p->deadzone);
+            if(i==5)snprintf(value,sizeof value,"Speed: %d percent",p->speed);
+            if(i>=6)snprintf(value,sizeof value,"%s",i==6?"Calibrate - release sticks then click":i==7?"Reset axes and calibration":"Back");
         }else{
-            const char *rows[7]={device,h->input.cursor_stick==0?"Cursor: Left":h->input.cursor_stick==1?"Cursor: Right":"Cursor: Off",h->input.enabled?"Input: On":"Input: Off",h->input.custom?"Layout: Custom":h->input.layout?"Layout: A B X":"Layout: X A B","Assign buttons","Reset defaults","Back to game"};
-            snprintf(text,sizeof text,"%s %s",h->controls.selected==i?"-":" ",rows[i]);
+            if(i==0)snprintf(value,sizeof value,"Pad: %d/%d",chosen,count);
+            if(i==1)snprintf(value,sizeof value,"Input: %s",p->enabled?"On":"Off");
+            if(i==2)snprintf(value,sizeof value,"Cursor: %s",p->cursor_stick==0?"Left":p->cursor_stick==1?"Right":p->cursor_stick==2?"Off":"Custom");
+            if(i==3)snprintf(value,sizeof value,"Digital: %s",p->digital==0?"Off":p->digital==1?"Left":"Right");
+            if(i==4)snprintf(value,sizeof value,"Mouse: %s",p->mouse?"On":"Off");
+            if(i>=5)snprintf(value,sizeof value,"%s",i==5?"Buttons / D-pad":i==6?"Axes / Deadzone":i==7?"Back to game":"Quit game");
         }
-        dune_controls_text(h->renderer,x+200*scale,y+(56+i*16)*scale,scale,text,18);
+        snprintf(text,sizeof text,"%s %s",s->selected==i?"-":" ",value);
+        dune_controls_text(h->renderer,x+(s->page?12:200)*scale,y+(50+i*(s->page?12:13))*scale,scale,text,s->page?48:18);
     }
-    snprintf(text,sizeof text,h->controls.remap?"Press a button for %s":"SEGA GENESIS - 3 BUTTON CONTROL PAD",h->controls.remap?actions[h->controls.remap-1]:"");
-    dune_controls_text(h->renderer,x+12*scale,y+167*scale,scale,text,48);
-    snprintf(text,sizeof text,"A/B/C: %s/%s/%s  START: %s",sdl_pad_label(sdl_pad_binding(&h->input,0)),sdl_pad_label(sdl_pad_binding(&h->input,1)),sdl_pad_label(sdl_pad_binding(&h->input,2)),sdl_pad_label(sdl_pad_binding(&h->input,3)));
-    dune_controls_text(h->renderer,x+12*scale,y+187*scale,scale,text,48);
-    dune_controls_text(h->renderer,x+12*scale,y+198*scale,scale,h->controls.remap?"ESC / BACK: Cancel":"Arrows / Enter / Click - ESC: Back",48);
-    dune_controls_text(h->renderer,x+12*scale,y+212*scale,scale,h->controls.message,48);
+    if(s->remap)snprintf(text,sizeof text,"Assign %s - release between presses",dune_controls_actions[s->remap-1]);
+    else if(s->page==2 && p->controller)snprintf(text,sizeof text,"RAW %d %d  CENTER %d %d",SDL_GameControllerGetAxis(p->controller,(SDL_GameControllerAxis)p->axis_x),SDL_GameControllerGetAxis(p->controller,(SDL_GameControllerAxis)p->axis_y),p->center[p->axis_x],p->center[p->axis_y]);
+    else snprintf(text,sizeof text,p->controller && !p->armed?"Center sticks or calibrate in Axes":"Only the selected pad controls the game");
+    dune_controls_text(h->renderer,x+12*scale,y+181*scale,scale,text,48);
+    dune_controls_text(h->renderer,x+12*scale,y+194*scale,scale,s->page==1?"Enter: Assign  Del: Clear  ESC: Back":"Arrows / Enter / Click - ESC: Back",48);
+    dune_controls_text(h->renderer,x+12*scale,y+210*scale,scale,s->message,48);
     SDL_RenderPresent(h->renderer);
 }
 #endif
