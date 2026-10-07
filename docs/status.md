@@ -138,3 +138,8 @@ check covers assignment, persistence, duplicate rejection, held-button
 suppression, focus loss, deadzone and disconnect. Data Frog USB button events
 were observed through SDL on macOS; in-game physical-controller validation
 is still pending. Only the first recognized controller is active.
+
+The settings illustration now traces the shell and button positions from
+[Evan-Amos's public-domain controller photograph](https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg).
+The original aspect ratio and concave grip cutout are retained; menu choices
+sit beside the pad. The photo is a reference only, with no image runtime dependency.

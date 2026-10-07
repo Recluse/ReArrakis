@@ -655,3 +655,8 @@ Native ROM build and ad-hoc app signature verification passed; a headless
 The settings menu includes an SDL-drawn three-button Sega pad, highlighting
 the current assignment. A dummy-renderer screenshot was visually checked.
 Physical gameplay validation remains pending.
+
+The settings illustration now traces the shell and button positions from
+[Evan-Amos's public-domain controller photograph](https://commons.wikimedia.org/wiki/File:Sega-Genesis-3But-Cont.jpg).
+The original aspect ratio and concave grip cutout are retained; menu choices
+sit beside the pad. The photo is a reference only, with no image runtime dependency.

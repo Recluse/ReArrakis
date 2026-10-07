@@ -29,6 +29,11 @@ static void button(SDLHost *h,CPU *c,SDL_Joystick *j,unsigned b,int down) {
  assert(!SDL_JoystickSetVirtualButton(j,(int)b,(Uint8)down));SDL_PumpEvents();
  assert(sdl_host_service(h,c));
 }
+static unsigned pixel(SDLHost *h,int x,int y) {
+ Uint32 value=0;SDL_Rect rect={x,y,1,1};
+ assert(!SDL_RenderReadPixels(h->renderer,&rect,SDL_PIXELFORMAT_ARGB8888,&value,sizeof value));
+ return value&0xffffff;
+}
 static void begin(SDLHost *h,CPU *c) {
  if(!h->controls.menu)dune_controls_toggle(h,c);h->controls.selected=2;
  key(h,c,SDLK_RETURN);assert(h->controls.remap==1 && !c->pad_buttons[0]);
@@ -54,7 +59,14 @@ int main(void) {
 
     def test_complete_wizard_persists_maps_buttons_and_blocks_confirmation_leak(self):
         self.check(r'''
-begin(&h,c);unsigned mapping[4]={SDL_CONTROLLER_BUTTON_Y,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_X};
+SDL_SetWindowSize(h.window,320,224);
+begin(&h,c);
+/* The traced shell keeps its grip cutout, and A is highlighted during assignment. */
+dune_controls_draw(&h);
+assert(pixel(&h,95,100)==0x424750);
+assert(pixel(&h,85,135)==0x14181e);
+assert(pixel(&h,114,104)==0xf0be50);
+unsigned mapping[4]={SDL_CONTROLLER_BUTTON_Y,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_X};
 for(unsigned i=0;i<4;++i) {
  button(&h,c,j,mapping[i],1);assert(!c->pad_buttons[0]);
  if(i<3)assert(h.controls.remap==(int)i+2 && !h.input.custom);
