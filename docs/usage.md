@@ -4,7 +4,7 @@
 
 ## Requirements and build
 
-Linux, Python 3.10+, C11 and C++17 compilers, pkg-config and SDL2 development files. SDL2_ttf and external fonts are not required. Use your own raw, unswapped 1 MiB USA ROM; the SHA-256 is in [the profile](../profiles/dune-us.json).
+Linux or macOS, Python 3.10+, C11 and C++17 compilers, pkg-config and SDL2 development files. SDL2_ttf and external fonts are not required. Use your own raw, unswapped 1 MiB USA ROM; the SHA-256 is in [the profile](../profiles/dune-us.json).
 
 Ubuntu / Debian: `sudo apt install git python3 build-essential pkg-config libsdl2-dev`.
 
@@ -35,6 +35,33 @@ python3 tools/build_dune.py '/path/to/Dune.gen' --emit-only
 ```
 
 Rebuild after updating source: `git pull` does not update an existing executable. Use the Dune builder rather than the generic CLI; it supplies game-specific discovery roots and sound-driver variants.
+
+## macOS
+
+Install Command Line Tools if Clang is unavailable, and use Homebrew for any
+missing Python/SDL2 dependencies:
+
+```sh
+xcode-select --install
+brew install python pkgconf sdl2-compat
+```
+
+An existing SDL2 installation also works. The same builder produces a native
+executable for the current Mac; no separate compiler or Python packages are
+needed. From the checkout directory:
+
+```sh
+python3 tools/build_dune.py '/path/to/Dune - The Battle for Arrakis (U) [!].gen'
+./run-dune.command
+```
+
+After building, double-click **run-dune.command** in Finder to play. It reuses
+the normal launcher and forwards runtime arguments, including `--audio mute`.
+Sound, mouse controls, adaptive rendering and zoom use the same code as Linux.
+Use **Fn + F11** if the keyboard assigns a system action to F11.
+
+The executable uses installed SDL libraries. A universal app bundle and
+standalone distribution are not provided.
 
 ## Controls
 
