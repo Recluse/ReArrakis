@@ -721,3 +721,30 @@ be released before it can be assigned. Both ReArrakis.app and
 ReArrakis-Gamepad.app are rebuilt locally, with previous versions kept in build/.
 Native compilation and ad-hoc signature checks passed. Live physical drift
 verification remains pending.
+
+
+## 2026-10-08: pause menu and save states
+
+- Esc/F10 now opens a game menu; F1 retains direct controller-settings access.
+- Added ten local state slots, occupied/empty status and modification times;
+  load/overwrite/quit have Cancel-focused confirmation. Pause and input handling
+  remain shared with controller settings. Fullscreen, volume and CPU speed are
+  exposed without inventing a second settings backend.
+- Snapshot CPU/devices, scrub host pointers, serialize FM through the existing
+  ymfm API, atomically replace files and validate before committing a load.
+  Reset host audio/input/camera clocks after loading. Deliberate limit: matching
+  ROM/runtime/features/native ABI only; no version migration or WAV-recording
+  snapshots. This is separate from the game's original save mechanism.
+- Menu references: [RetroArch Quick Menu](https://docs.libretro.com/guides/quick-menu/)
+  for pause/resume and grouped state/control actions;
+  [Game Accessibility Guidelines](https://gameaccessibilityguidelines.com/full-list/)
+  for consistent input methods, readable contrast and visible focus. Confirmation
+  and safe default selection are implementation choices for avoiding lost progress.
+- Added SDL round-trip/corrupt-state/confirmation checks, an exact FM+PSG audio
+  continuation test, and optional ROM-backed `tools/test_dune_state.c`.
+- Validation: full suite 294 tests, one platform-specific skip; real-ROM frame
+  5000 -> 5030 replay reproduced RAM, video, PC, master clock and FM state.
+  Main/confirmation menus rendered and inspected with SDL's software renderer.
+  Native app rebuilt; both ReArrakis.app and ReArrakis-Gamepad.app updated and
+  their ad-hoc signatures verified. Physical controller navigation remains a
+  user-side check; the automated menu/input checks use SDL events/virtual pads.

@@ -5,7 +5,7 @@
 #include <SDL.h>
 #include "gamepad_sdl.h"
 typedef struct {
-    int menu,selected,remap,was_paused,page,assign_one;
+    int menu,selected,remap,was_paused,page,assign_one,slot,confirm;
     SDL_JoystickID profile_instance;
     uint64_t held;uint8_t pending[8];char message[96];
 } DuneControls;
@@ -63,6 +63,7 @@ static int sdl_host_error(SDLHost *h, const char *operation) {
     h->error=1; return 0;
 }
 static void sdl_host_rebase(SDLHost *h,const CPU *c);
+#include "save_state.h"
 #include "dune_controls_sdl.h"
 #include "dune_audio.h"
 #include "dune_view_sdl.h"
@@ -87,7 +88,7 @@ static int sdl_host_open(SDLHost *h) {
         if(initial_width<320)initial_width=320;if(initial_height<224)initial_height=224;
     }
 #endif
-    h->window=SDL_CreateWindow(GENESIS_WINDOW_TITLE " - Esc / F1: Controller settings",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,
+    h->window=SDL_CreateWindow(GENESIS_WINDOW_TITLE " - Esc: Menu / F1: Controller settings",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,
         initial_width,initial_height,SDL_WINDOW_RESIZABLE|SDL_WINDOW_ALLOW_HIGHDPI);
     if (!h->window) return sdl_host_error(h,"window creation failed");
     h->renderer=SDL_CreateRenderer(h->window,-1,SDL_RENDERER_ACCELERATED);
@@ -284,7 +285,7 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
     dune_stick_cursor(h,c,SDL_GetTicks());
 #endif
     if (redraw || h->last_frame!=c->vdp.rendered_frames){
-        if(h->controls.menu)dune_controls_draw(h);
+        if(h->controls.menu)dune_controls_draw(h,c);
         else {
 #ifdef GENESIS_DUNE_MOUSE
             if(!dune_view_draw(h,c))return 0;

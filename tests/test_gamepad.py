@@ -114,7 +114,7 @@ int armed=h.input.armed;assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,
 /* Unplugging never silently hands control to another connected pad. */
 assert(!SDL_JoystickDetachVirtual(second));assert(sdl_host_service(&h,c));assert(!h.input.controller && h.input.await_select);
 SDL_JoystickClose(other);
-dune_controls_toggle(&h,c);h.controls.selected=0;key(&h,c,SDLK_RIGHT);assert(h.input.instance==SDL_JoystickInstanceID(j));
+dune_controls_toggle(&h,c);h.controls.page=0;h.controls.selected=0;key(&h,c,SDLK_RIGHT);assert(h.input.instance==SDL_JoystickInstanceID(j));
 /* A stick held at its limit on selection cannot move anything until centered. */
 dune_controls_toggle(&h,c);h.stick_cursor_blocked=0;dune_stick_cursor(&h,c,1000);
 assert(!h.input.armed && !h.dune_view.pointer_valid && !c->pad_buttons[0]);
