@@ -79,6 +79,14 @@ usage and does not change the console clock or game speed.
 The 17 adapter/timing tests passed and the optimized Linux build completed.
 The reported X11 Compose warning is separate and has not been fixed here.
 
+## Local macOS app packaging — 2026-10-07
+
+`tools/build_macos_app.py` wraps an existing SDL executable in an ad-hoc
+signed app with a Finder launcher that does not open Terminal. It uses
+installed SDL libraries and keeps writable files in Application Support.
+A synthetic executable checks bundle structure, signing, paths with spaces
+and refusal to overwrite an existing app; no ROM is needed for that test.
+
 ## Limitations
 
 - Other ROM revisions are rejected.
@@ -91,11 +99,3 @@ The reported X11 Compose warning is separate and has not been fixed here.
 - RROP's host settings, external fonts and full-state save slots are not Dune features.
 
 Report [issues](https://github.com/kruzeman/ReArrakis/issues) with OS, source revision, ROM hash, house/mission and the exact action or diagnostic line. Do not upload game data.
-
-## Local macOS app packaging — 2026-10-07
-
-`tools/build_macos_app.py` wraps an existing SDL executable in an ad-hoc
-signed app with a Finder launcher that does not open Terminal. It uses
-installed SDL libraries and keeps writable files in Application Support.
-A synthetic executable checks bundle structure, signing, paths with spaces
-and refusal to overwrite an existing app; no ROM is needed for that test.
