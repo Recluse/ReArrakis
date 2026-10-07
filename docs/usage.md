@@ -60,8 +60,25 @@ the normal launcher and forwards runtime arguments, including `--audio mute`.
 Sound, mouse controls, adaptive rendering and zoom use the same code as Linux.
 Use **Fn + F11** if the keyboard assigns a system action to F11.
 
-The executable uses installed SDL libraries. A universal app bundle and
-standalone distribution are not provided.
+### Finder app without a Terminal window
+
+After the normal SDL build, package it locally:
+
+```sh
+python3 tools/build_macos_app.py
+open build/ReArrakis.app
+```
+
+Double-click `ReArrakis.app` to play without opening Terminal. You can move
+it elsewhere on the same Mac. It contains the executable (including your ROM)
+and uses the installed SDL libraries; it is not a standalone distribution or
+a universal build. Do not upload the app or its game data.
+
+The launcher keeps writable game files and `launch.log` in
+`~/Library/Application Support/ReArrakis/`. If startup fails, inspect that log.
+The app is ad-hoc signed locally, not notarized. To rebuild, move the old app
+aside first, or select a new path with `--output '/path/to/ReArrakis.app'`.
+`--binary '/path/to/dune'` packages a different existing native SDL build.
 
 ## Controls
 
