@@ -43,7 +43,10 @@ class DuneAdapters(CompiledTestCase):
             flags, libs = sdl2_flags()
         except BuildError as exc:
             self.skipTest(str(exc))
-        program = analyze(rom_with('4e72 2700'), [0x200])
+        rom = bytearray(rom_with('4e72 2700'))
+        rom.extend(bytes(0x1000-len(rom)))
+        rom[0xfda:0xfe2] = bytes.fromhex('4e71 4e75 4e71 4e75')
+        program = analyze(bytes(rom), [0x200, 0xfda, 0xfde])
         harness = '''
 #include <assert.h>
 static void word(CPU *c,unsigned a,unsigned value) {
@@ -72,6 +75,25 @@ int main(void) {
     assert(dune_word(&c,0xe3ec)==160 && dune_word(&c,0xe3ee)==224);
     assert(c.pad_buttons[0]==PAD_C && !h.dune_mouse.count);
     assert(h.dune_mouse.camera_hold && h.dune_view.zoom==100);
+    /* Busy-cycle estimate excludes native waiting, includes all other work. */
+    e.type=SDL_KEYDOWN;e.key.keysym.sym=SDLK_F3;e.key.repeat=0;
+    assert(dune_view_event(&h,&c,&e) && h.dune_cpu_overlay);
+    c.cycles=1000;c.dune_wait_cycles=800;c.vdp.frames=1;dune_cpu_sample(&h,&c);
+    c.cycles=1100;c.dune_wait_cycles=880;c.vdp.frames=16;dune_cpu_sample(&h,&c);
+    assert(h.dune_cpu_percent==20);
+    c.cycles=1200;c.vdp.frames=31;dune_cpu_sample(&h,&c);assert(h.dune_cpu_percent==100);
+    CPU before=c;assert(dune_cpu_draw(&h,&c));assert(!memcmp(&before,&c,sizeof c));
+    c.cycles=0;c.dune_wait_cycles=0;c.vdp.frames=0;dune_cpu_sample(&h,&c);
+    c.cycles=100;c.dune_wait_cycles=100;c.vdp.frames=15;dune_cpu_sample(&h,&c);
+    assert(h.dune_cpu_percent==0);
+    assert(dune_view_event(&h,&c,&e) && !h.dune_cpu_overlay);
+    /* A halted virtual CPU contributes waiting cycles, not busy work. */
+    c.audio_mode=AUDIO_MUTE;c.z80_bus.reset_released=0;c.pc=0x200;c.sr=0x2700;
+    machine_step(&c);assert(c.halted && !c.fault);
+    uint64_t idle=c.dune_wait_cycles;machine_step(&c);
+    assert(!c.fault && c.dune_wait_cycles==idle+4);
+    c.halted=0;c.pc=0xfda;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+8);
+    c.pc=0xfde;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+12);
     sdl_host_close(&h);return 0;
 }
 '''

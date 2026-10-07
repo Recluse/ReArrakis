@@ -28,11 +28,23 @@ static int machine_interrupt(CPU *c) {
 static void machine_step(CPU *c) {
     if (c->fault) return;
     if (machine_interrupt(c)) return;
-    if (c->halted) { machine_advance(c,4); return; }
+    if (c->halted) {
+#ifdef GENESIS_DUNE_MOUSE
+        c->dune_wait_cycles+=4;
+#endif
+        machine_advance(c,4); return;
+    }
+#ifdef GENESIS_DUNE_MOUSE
+    uint32_t original_pc=c->pc;
+#endif
     c->instruction_cycles=0;
     translated_step(c); ++c->steps;
     unsigned cycles=c->instruction_cycles;
     c->instruction_cycles=0;
+#ifdef GENESIS_DUNE_MOUSE
+    /* Original wait-for-VBlank loop: CMP $FFE006; BEQ back to CMP. */
+    if(original_pc==0xfda || original_pc==0xfde)c->dune_wait_cycles+=cycles;
+#endif
     machine_advance(c,cycles);
 }
 static int machine_can_wake(const CPU *c) {

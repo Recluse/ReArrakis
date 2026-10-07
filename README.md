@@ -49,7 +49,7 @@ For macOS dependencies and Finder launch, see the [macOS instructions](docs/usag
 
 Sound, mouse controls, adaptive rendering and zoom are enabled automatically. Compilation may take several minutes. The result is `build/dune`, with your ROM data embedded.
 
-Left click selects or confirms; right click orders or cancels. Move the pointer to a window edge to scroll. Use the wheel to zoom, **0** to reset zoom, and **F11** for fullscreen. Keyboard: arrows, **Z / X / C** for A / B / C, **Enter** for Start.
+Left click selects or confirms; right click orders or cancels. Move the pointer to a window edge to scroll. Use the wheel to zoom, **0** to reset zoom, and **F11** for fullscreen, and **F3** for estimated 68000 occupancy. Keyboard: arrows, **Z / X / C** for A / B / C, **Enter** for Start.
 
 See the [manual](docs/usage.md) for detailed controls, volume and diagnostics, and [status](docs/status.md) for current limitations.
 

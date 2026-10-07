@@ -1,6 +1,7 @@
 #ifndef GENESIS_DUNE_VIEW_SDL_H
 #define GENESIS_DUNE_VIEW_SDL_H
 #if defined(GENESIS_DUNE_MOUSE) && defined(GENESIS_SDL2)
+#include "dune_cpu_sdl.h"
 static int dune_view_map(const CPU *c){return !c->fault && dune_mouse_context(c)==1 && c->vdp.frame_width==320 && c->vdp.frame_height==224;}
 static DuneLayout dune_view_host_layout(SDLHost *h,const CPU *c,int w,int height){
     DuneView *v=&h->dune_view;DuneMouse *m=&h->dune_mouse;
@@ -103,6 +104,9 @@ static int dune_view_event(SDLHost *h,CPU *c,const SDL_Event *e){
         }
         dune_mouse_reset(&h->dune_mouse);dune_view_pointer(h,c);return !!delta;
     }
+    if(e->type==SDL_KEYDOWN && !e->key.repeat && e->key.keysym.sym==SDLK_F3){
+        h->dune_cpu_overlay=!h->dune_cpu_overlay;h->dune_cpu_sample_valid=0;return 1;
+    }
     if(e->type==SDL_KEYDOWN && !e->key.repeat && e->key.keysym.sym==SDLK_0){
         h->dune_view.zoom=100;dune_mouse_reset(&h->dune_mouse);dune_view_pointer(h,c);return 1;
     }
@@ -167,6 +171,7 @@ static int dune_view_draw(SDLHost *h,CPU *c){
         SDL_FRect b={t.x,(float)(hg-80*p.ui_scale),t.w,(float)(80*p.ui_scale)};
         if(SDL_RenderCopyF(h->renderer,h->dune_hud,&top,&t) || SDL_RenderCopyF(h->renderer,h->dune_hud,&bottom,&b))return sdl_host_error(h,"Dune HUD draw failed");
     }
+    if(!dune_cpu_draw(h,c))return sdl_host_error(h,"Dune CPU overlay failed");
     h->last_frame=v->rendered_frames;SDL_RenderPresent(h->renderer);return 1;
 }
 #endif

@@ -16,6 +16,9 @@ typedef struct {
     unsigned dune_width,dune_height;
     int dune_window_width,dune_window_height;
     int dune_volume;
+    int dune_cpu_overlay,dune_cpu_sample_valid;
+    unsigned dune_cpu_percent;
+    uint64_t dune_cpu_cycles,dune_cpu_idle,dune_cpu_frame;
 #endif
     SDL_Renderer *renderer;
     SDL_Texture *texture;

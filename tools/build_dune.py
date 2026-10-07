@@ -70,8 +70,9 @@ for table in profile.get('callback_tables', []):
         assert target % 2 == 0 and 0 <= target < len(rom)
         Decoder(rom, target).decode()
         entries.add(target)
-# Intro screen scripts dispatch word opcodes through signed offsets at $41936.
-# Opcode zero terminates the script before the indirect JSR at $41908.
+# Verified signed-offset dispatch tables: intro scripts at $41936 and the
+# password actions at $2197C. Intro opcode zero is a terminator, while all
+# eleven password switch slots are valid (including intentional no-ops).
 for table in profile.get('relative_callback_tables', []):
     base, first, count = table['offset'], table['first'], table['count']
     assert 0 <= first < count and 0 <= base <= len(rom) - count * 2

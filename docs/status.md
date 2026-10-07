@@ -60,6 +60,25 @@ The budget exit (status 2) is expected. These checks use software rendering
 and synthesized audio; accelerated rendering, fullscreen and physical audio
 output still require a manual desktop check.
 
+## Passwords and 68000 occupancy — 2026-10-07
+
+The password action table at `$2197C` now seeds all 11 native branches,
+fixing the missing translation at `$21A0C` when entering PLAYTESTER.
+The USA build contains 40,382 M68K and 3,095 Z80 instructions.
+A bounded native fixture entered all 29 passwords through the original
+controller-driven password keyboard and verified their handler effects.
+It also checked both toggle codes a second time and rejected three invalid
+inputs. The fixture invokes the password screen from an initialized first
+mission snapshot; this does not verify playing every unlocked mission.
+
+F3 toggles an approximate virtual 68000 occupancy overlay, sampled every
+15 frames. It excludes cycles in the original VBlank wait loop at
+`$0FDA`/`$0FDE` and halted CPU cycles. Interrupt work counts as occupied;
+other unidentified busy waits also count as occupied. This is not host CPU
+usage and does not change the console clock or game speed.
+The 17 adapter/timing tests passed and the optimized Linux build completed.
+The reported X11 Compose warning is separate and has not been fixed here.
+
 ## Limitations
 
 - Other ROM revisions are rejected.

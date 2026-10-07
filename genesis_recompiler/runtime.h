@@ -38,6 +38,9 @@ typedef struct {
     size_t rom_size;
     uint64_t steps;
     uint64_t cycles, master_cycles, interrupts;
+#ifdef GENESIS_DUNE_MOUSE
+    uint64_t dune_wait_cycles; /* Host telemetry; no change to console clocks. */
+#endif
     unsigned instruction_cycles, z80_divider;
     int halted, fault;
     uint32_t fault_address;

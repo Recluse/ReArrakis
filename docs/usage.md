@@ -75,6 +75,7 @@ standalone distribution are not provided.
 | Mouse wheel | Map zoom, 50–100% in 10% steps |
 | 0 | Reset zoom to 100% |
 | F11 | Toggle desktop fullscreen |
+| F3 | Toggle approximate original 68000 occupancy |
 | Arrows | Original directional pad |
 | Z / X / C | A / B / C |
 | Enter | Start |
@@ -122,3 +123,12 @@ Other fixtures in `tools/` cover intro, combat, construction, rendering, menus a
 Missing SDL2: install its development package. Sound not compiled in: rebuild with `tools/build_dune.py`. A private repository requires GitHub access to clone.
 
 Do not commit or attach ROMs, extracted assets, generated game code, executables or saves.
+
+## CPU occupancy overlay
+
+F3 toggles a small `68K: …%` panel in the top-left corner. The percentage is
+virtual 68000 cycles outside Dune's original VBlank polling loop ($0FDA/$0FDE),
+averaged over 15 console frames. Interrupt handling counts as work; a halted
+CPU counts as waiting. It is an estimate: other busy-wait loops count as work.
+This is not host CPU usage, GPU usage or an FPS counter. No console clock,
+instruction budget or gameplay speed is changed. The overlay starts disabled.
