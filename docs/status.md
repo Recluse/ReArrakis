@@ -79,6 +79,14 @@ usage and does not change the console clock or game speed.
 The 17 adapter/timing tests passed and the optimized Linux build completed.
 The reported X11 Compose warning is separate and has not been fixed here.
 
+## Local macOS app packaging — 2026-10-07
+
+`tools/build_macos_app.py` wraps an existing SDL executable in an ad-hoc
+signed app with a Finder launcher that does not open Terminal. It uses
+installed SDL libraries and keeps writable files in Application Support.
+A synthetic executable checks bundle structure, signing, paths with spaces
+and refusal to overwrite an existing app; no ROM is needed for that test.
+
 ## Limitations
 
 - Other ROM revisions are rejected.
@@ -113,3 +121,10 @@ left half cycles backwards and the right half forwards. Click keyboard
 letters, `<`/`>` and `!` using their original behavior. Right click closes
 options/password entry; in the options confirmation dialog, left click
 accepts and right click declines. Settings are changed by native handlers.
+## Cursor edge scrolling — 2026-10-07
+
+Edge scrolling follows the visible game cursor bounds instead of a fixed
+12-point band around the OS pointer. The free square and snapped grid cursor
+use the same world scale as rendering, including drawable-pixel scaling.
+The ROM-free SDL regression covers all four edges at 50%, 75% and 100% zoom,
+stopping in the interior and cancelling on window leave.

@@ -126,6 +126,34 @@ int main(void) {
     e.type=SDL_KEYDOWN;e.key.repeat=0;e.key.keysym.sym=SDLK_F4;
     assert(dune_view_event(&h,&c,&e) && !c.dune_cpu_double);
     master=c.master_cycles;machine_advance(&c,2);assert(c.master_cycles==master+14);
+    c.fault=0;word(&c,0xe002,0);
+    /* The visible cursor reaches the edge before the OS pointer does. */
+    h.dune_mouse.enabled=1;
+    for(unsigned zoom=50;zoom<=100;zoom+=25)for(unsigned grid=0;grid<2;grid++){
+        h.dune_view.zoom=zoom;
+        DuneLayout p=dune_view_layout(&c,960,672,zoom);
+        h.dune_view.camera_x=512+p.world_width/2-160;
+        h.dune_view.camera_y=512+p.world_height/2-112;
+        word(&c,0xe004,grid?0x6092:0x6d10);
+        int near=(int)((grid?10:12)*p.world_scale);
+        int inside=(int)((grid?65:15)*p.world_scale)+1;
+        const int points[][4]={
+            {near,336,-3,0},{960-near,336,3,0},
+            {480,near,0,-3},{480,672-near,0,3},
+            {inside,336,0,0},{960-inside,336,0,0},
+            {480,inside,0,0},{480,672-inside,0,0}
+        };
+        e.type=SDL_MOUSEMOTION;
+        for(unsigned i=0;i<8;i++){
+            e.motion.x=points[i][0];e.motion.y=points[i][1];
+            dune_mouse_event(&h,&c,&e);
+            assert(h.dune_mouse.pan_x==points[i][2]);
+            assert(h.dune_mouse.pan_y==points[i][3]);
+        }
+        e.type=SDL_WINDOWEVENT;e.window.event=SDL_WINDOWEVENT_LEAVE;
+        dune_mouse_event(&h,&c,&e);
+        assert(!h.dune_mouse.pan_x && !h.dune_mouse.pan_y);
+    }
     sdl_host_close(&h);return 0;
 }
 '''

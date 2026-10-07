@@ -58,9 +58,18 @@ static void dune_view_pointer(SDLHost *h,const CPU *c){
     if(world)dune_mouse_world_point(m,c,x,y);else dune_mouse_point(m,c,x,y);
     m->pan_x=m->pan_y=0;
     if(world && h->window){
-        int w,height;SDL_GetWindowSize(h->window,&w,&height);
-        m->pan_x=v->pointer_x<12?-3:v->pointer_x>=w-12?3:0;
-        m->pan_y=v->pointer_y<12?-3:v->pointer_y>=height-12?3:0;
+        int w,height;if(SDL_GetRendererOutputSize(h->renderer,&w,&height))return;
+        DuneLayout p=dune_view_host_layout(h,c,w,height);
+        /* Match the visible cursor: a snapped 32px cell or the free square
+           spanning -13..12 around its anchor. Compare in drawable pixels,
+           so zoom and Retina scaling affect scrolling just like rendering. */
+        int grid=dune_long(c,0xe002)==0x6092;
+        int left=grid?(x&~31):x-13,top=grid?(y&~31):y-13;
+        int size=grid?32:26;
+        m->pan_x=(left-p.left)*p.world_scale<=0?-3:
+                 (left+size-p.left)*p.world_scale>=w?3:0;
+        m->pan_y=(top-p.top)*p.world_scale<=0?-3:
+                 (top+size-p.top)*p.world_scale>=height?3:0;
     }
 }
 static int dune_view_event(SDLHost *h,CPU *c,const SDL_Event *e){
