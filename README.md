@@ -1,7 +1,5 @@
 # ReArrakis
 
-Native PC recompilation of **Dune — The Battle for Arrakis** for Sega Genesis / Mega Drive, with mouse controls, an adaptive map view and zoom.
-
 [Русский README](README.ru.md) · [Build and controls](docs/usage.md) · [Status](docs/status.md) · [Contributing](CONTRIBUTING.md)
 
 ReArrakis translates the original 68000 and Z80 code into C ahead of time, then builds a native executable. Original game logic runs alongside a runtime for the console hardware. The expanded map uses the game's terrain data and sprite routines.
