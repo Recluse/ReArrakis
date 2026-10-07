@@ -103,6 +103,12 @@ FILE *f=fopen("state-01.grs","r+b");assert(f);assert(!fseek(f,sizeof(StateHeader
 fputc(0,f);fclose(f);c.d[0]=555;assert(!state_load(&c,"state-01.grs") && c.d[0]==555);
 assert(!state_load(&c,"missing.grs") && c.d[0]==555);
 assert(!state_save(&c,"missing-directory/state.grs"));
+assert(state_save(&c,"state-01.grs"));c.d[0]=777;
+assert(state_save(&c,"state-01.grs"));c.d[0]=0;
+assert(state_load(&c,"state-01.grs") && c.d[0]==777);
+/* A failed replacement must leave the previous file intact. */
+assert(!host_file_replace("no-such-temp.grs","state-01.grs"));
+c.d[0]=0;assert(state_load(&c,"state-01.grs") && c.d[0]==777);
 h.controls.slot=1;h.controls.selected=3;key(SDL_KEYDOWN,SDLK_RETURN,0);assert(sdl_host_service(&h,&c));
 assert(h.controls.page==3 && strstr(h.controls.message,"empty"));
 h.controls.selected=0;key(SDL_KEYDOWN,SDLK_RETURN,0);assert(sdl_host_service(&h,&c));assert(!h.paused && !h.controls.menu);

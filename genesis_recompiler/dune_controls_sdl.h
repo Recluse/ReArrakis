@@ -159,7 +159,7 @@ static int dune_controls_save_file(SDLPadInput *p,const char *path) {
     for(int i=0;i<SDL_CONTROLLER_AXIS_MAX;i++)if(fprintf(f,"%d ",p->center[i])<0)ok=0;
     if(fprintf(f,"\n%s\n",p->preferred[0]?p->preferred:"00000000000000000000000000000000")<0)ok=0;
     if(fclose(f))ok=0;
-    if(ok)ok=!rename(temporary,path);return ok;
+    if(ok)ok=host_file_replace(temporary,path);if(!ok)remove(temporary);return ok;
 }
 static void dune_controls_profile_path(SDLPadInput *p,char *path,size_t size) {
     char guid[33];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(SDL_GameControllerGetJoystick(p->controller)),guid,sizeof guid);

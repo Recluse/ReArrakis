@@ -136,6 +136,10 @@ dune_controls_write(&h);h.input.center[0]=0;dune_controls_read(&h);assert(h.inpu
 /* Mouse can be disabled independently; configuration remains reachable. */
 h.input.mouse=0;h.dune_view.pointer_valid=0;e.type=SDL_MOUSEMOTION;e.motion.x=0;e.motion.y=0;
 assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,c));assert(!h.dune_view.pointer_valid);
+h.stick_cursor_active=1;h.stick_cursor_x=123;h.stick_cursor_y=234;
+e.type=SDL_MOUSEMOTION;e.motion.x=900;e.motion.y=600;
+assert(SDL_PushEvent(&e)==1);assert(sdl_host_service(&h,c));
+assert(h.stick_cursor_active && h.stick_cursor_x==123 && h.stick_cursor_y==234);
 key(&h,c,SDLK_F1);assert(h.controls.menu);key(&h,c,SDLK_F1);assert(!h.controls.menu);
 /* Malformed configs are rejected atomically. */
 FILE *f=fopen("gamepad.cfg","w");assert(f);fputs("ReArrakis controls 4\n1 0 1\n999",f);assert(!fclose(f));

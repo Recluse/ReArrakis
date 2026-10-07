@@ -48,7 +48,7 @@ static int state_save(CPU *c,const char *path) {
         ok=fwrite(&head,1,sizeof head,f)==sizeof head && fwrite(copy,1,sizeof *copy,f)==sizeof *copy;
         if(ok && head.fm_size)ok=fwrite(fm,1,(size_t)head.fm_size,f)==head.fm_size;
         if(fclose(f))ok=0;
-        if(ok)ok=!rename(temporary,path);
+        if(ok)ok=host_file_replace(temporary,path);
         if(!ok)remove(temporary);
     }
     free(fm);free(copy);return ok;

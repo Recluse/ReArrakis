@@ -63,6 +63,7 @@ static int sdl_host_error(SDLHost *h, const char *operation) {
     h->error=1; return 0;
 }
 static void sdl_host_rebase(SDLHost *h,const CPU *c);
+#include "host_file.h"
 #include "save_state.h"
 #include "dune_controls_sdl.h"
 #include "dune_audio.h"
@@ -232,7 +233,7 @@ static int sdl_host_service(SDLHost *h, CPU *c) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
 #ifdef GENESIS_DUNE_MOUSE
-        if(event.type==SDL_MOUSEMOTION || event.type==SDL_MOUSEBUTTONDOWN)h->stick_cursor_active=0;
+        if(h->input.mouse && (event.type==SDL_MOUSEMOTION || event.type==SDL_MOUSEBUTTONDOWN))h->stick_cursor_active=0;
         if((event.type==SDL_CONTROLLERDEVICEREMOVED || event.type==SDL_CONTROLLERDEVICEREMAPPED) && event.cdevice.which==h->input.instance){
             h->stick_cursor_active=0;h->stick_cursor_blocked=1;
             h->dune_view.pointer_valid=0;dune_mouse_reset(&h->dune_mouse);
