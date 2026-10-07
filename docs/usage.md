@@ -145,3 +145,10 @@ CPU cycles advance peripheral master time by half as much at 2x; VDP, Z80
 and audio keep their stock clocks. This changes original CPU timing and can
 affect CPU-bound gameplay. SPD remains console wall-clock speed, not CPU
 multiplier. This experiment does not belong to main's faithful defaults.
+
+Mouse support now covers native options and the password keyboard: hover
+selects a row/cell; left click activates it. On option values, clicking the
+left half cycles backwards and the right half forwards. Click keyboard
+letters, `<`/`>` and `!` using their original behavior. Right click closes
+options/password entry; in the options confirmation dialog, left click
+accepts and right click declines. Settings are changed by native handlers.

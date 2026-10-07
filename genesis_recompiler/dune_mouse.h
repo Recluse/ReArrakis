@@ -57,7 +57,14 @@ static int dune_mouse_front_poll(const CPU *c){
     case 0x25cb2:return 7; /* YES/NO confirmation */
     case 0x4d4e:{
         unsigned sp=c->a[7]&65535;
-        return sp<=65532 && dune_long(c,sp)==0x178d2?5:4;
+        if(sp<=65532){
+            uint32_t caller=dune_long(c,sp);
+            if(caller==0x20f24)return 8; /* options */
+            if(caller==0x21660)return 9; /* password keyboard */
+            if(caller==0x21ae6)return 10; /* options YES/NO */
+            if(caller==0x178d2)return 5;
+        }
+        return 4;
     }
     case 0x4724:case 0x17d22:case 0x17e96:case 0x17ea6:case 0x17eb6:
         return 4;
@@ -69,6 +76,7 @@ static int dune_mouse_active(const DuneMouse *m,const CPU *c){
     int front=!c->fault && c->vdp.rendered_frames && m->front_kind &&
         m->front_callback==dune_long(c,0xe002) &&
         c->vdp.frames-m->front_frame<=4?m->front_kind:0;
+    if(front>=8)return front;
     if(context==1)return context;
     if(front>=5)return front;
     return context?context:front;
@@ -88,6 +96,10 @@ static void dune_mouse_click(DuneMouse *m,const CPU *c,int x,int y,int action) {
         if(c->vdp.frames<m->cooldown || m->count)return;
         if(m->context==5 && (x<104 || x>=248 || y<156 || y>=184))return;
         if(m->context==6 && (y<32 || y>=208))return;
+        if(action==DUNE_CLICK_SELECT && m->context==8 &&
+           (x<12 || x>=304 || y<28 || y>=((c->a[4]&65535)?172:140) || (y>=108 && y<124)))return;
+        if(action==DUNE_CLICK_SELECT && m->context==9 &&
+           (x<76 || x>=236 || y<44 || y>=92))return;
     }
     int col,row;
     if((m->context==2 || m->context==3) && action==DUNE_CLICK_SELECT &&
@@ -185,7 +197,26 @@ static void dune_mouse_observe(DuneMouse *m,CPU *c) {
         int x=m->count?m->queue[m->head].x:m->x;
         int y=m->count?m->queue[m->head].y:m->y;
         int ready=1;unsigned key=0;
-        if(front==5){
+        if(front==8){
+            if(m->count && m->queue[m->head].action!=DUNE_CLICK_SELECT){
+                c->d[0]=PAD_START;dune_mouse_pop(m);m->cooldown=c->vdp.frames+6;return;
+            }
+            if(x<12 || x>=304 || y<28 || y>=((c->a[4]&65535)?172:140) || (y>=108 && y<124)){m->dirty=0;return;}
+            unsigned target=y<108?(y-28)/16:5+(y-124)/16;
+            unsigned current=dune_word(c,0xdbfc);
+            if(dune_word(c,0xdbf8)){ready=0;}
+            else if(current!=target){key=current>target?PAD_UP:PAD_DOWN;ready=0;}
+        }else if(front==9){
+            if(m->count && m->queue[m->head].action!=DUNE_CLICK_SELECT){
+                c->d[0]=PAD_START;dune_mouse_pop(m);m->cooldown=c->vdp.frames+6;return;
+            }
+            if(x<76 || x>=236 || y<44 || y>=92){m->dirty=0;return;}
+            unsigned tx=84+16*((x-76)/16),ty=52+16*((y-44)/16);
+            unsigned cx=dune_word(c,0xdbf0),cy=dune_word(c,0xdbf2);
+            if(dune_word(c,0xdbf8) || dune_word(c,0xdbfa)){ready=0;}
+            else if(cx!=tx){key=cx>tx?PAD_LEFT:PAD_RIGHT;ready=0;}
+            else if(cy!=ty){key=cy>ty?PAD_UP:PAD_DOWN;ready=0;}
+        }else if(front==5){
             if(x<104 || x>=248 || y<156 || y>=184){m->dirty=0;return;}
             unsigned target=160+8*((y-156)/8),current=dune_word(c,0xd70e);
             if(current!=target){key=current>target?1:2;ready=0;}
@@ -201,8 +232,11 @@ static void dune_mouse_observe(DuneMouse *m,CPU *c) {
         if(ready){
             m->dirty=0;
             if(m->count){
-                c->d[0]=0x40;dune_mouse_pop(m);dune_mouse_reset(m);
-                m->cooldown=c->vdp.frames+20;
+                DuneClick click=m->queue[m->head];
+                c->d[0]=front==10 && click.action!=DUNE_CLICK_SELECT?0x10:
+                    front==8 && dune_word(c,0xdbfc)<5 && x<160?PAD_LEFT:0x40;
+                dune_mouse_pop(m);dune_mouse_reset(m);
+                m->cooldown=c->vdp.frames+(front>=8?6:20);
             }
         }
         return;

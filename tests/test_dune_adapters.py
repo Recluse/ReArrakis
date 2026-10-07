@@ -102,6 +102,23 @@ int main(void) {
     assert(!c.fault && c.dune_wait_cycles==idle+4);
     c.halted=0;c.pc=0xfda;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+8);
     c.pc=0xfde;machine_step(&c);assert(!c.fault && c.dune_wait_cycles==idle+12);
+    /* Options and password clicks feed original pad decoding, not setting fields. */
+    DuneMouse menu={.enabled=1};c.pc=0x4d4e;c.a[7]=0xfff000;
+    write_mem(&c,0xfff000,4,0x20f24);c.a[4]=1;c.pad_buttons[0]=0;
+    word(&c,0xdbfc,0);word(&c,0xdbf8,0);c.vdp.rendered_frames=1;
+    dune_mouse_observe(&menu,&c);assert(menu.front_kind==8);
+    dune_mouse_click(&menu,&c,200,36,DUNE_CLICK_SELECT);
+    dune_mouse_observe(&menu,&c);assert(c.d[0]==0x40 && !menu.count);
+    menu.cooldown=0;dune_mouse_click(&menu,&c,200,132,DUNE_CLICK_SELECT);
+    dune_mouse_observe(&menu,&c);assert(c.d[0]==PAD_DOWN && menu.count);
+    word(&c,0xdbfc,5);dune_mouse_observe(&menu,&c);assert(c.d[0]==0x40 && !menu.count);
+    write_mem(&c,0xfff000,4,0x21660);dune_mouse_observe(&menu,&c);
+    assert(menu.front_kind==9);menu.cooldown=0;
+    word(&c,0xdbf0,84);word(&c,0xdbf2,52);word(&c,0xdbfa,0);
+    dune_mouse_click(&menu,&c,84,52,DUNE_CLICK_SELECT);
+    dune_mouse_observe(&menu,&c);assert(c.d[0]==0x40 && !menu.count);
+    menu.cooldown=0;dune_mouse_click(&menu,&c,84,52,DUNE_CLICK_CANCEL);
+    dune_mouse_observe(&menu,&c);assert(c.d[0]==PAD_START && !menu.count);
     uint64_t master=c.master_cycles,cycles=c.cycles;
     c.dune_cpu_double=1;c.dune_cpu_clock_remainder=0;
     machine_advance(&c,1);assert(c.master_cycles==master+3);
