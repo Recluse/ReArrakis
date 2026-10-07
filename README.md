@@ -15,6 +15,18 @@ This is a work in progress. Linux is the supported build platform. The first Atr
 - Original HUD over the expanded map, and F11 fullscreen.
 - YM2612 and PSG sound through the statically translated Z80 driver and ymfm.
 
+## Screenshots
+
+The same first-mission scene at 1280 × 720. Black areas are unexplored terrain.
+
+**Widescreen — 100% scale**
+
+![ReArrakis widescreen at 100% scale](docs/images/rearrakis-widescreen-100.png)
+
+**Widescreen — 50% scale (zoomed out)**
+
+![ReArrakis widescreen at 50% scale](docs/images/rearrakis-widescreen-50.png)
+
 ## Build and run
 
 You need your own raw, unswapped **USA ROM**, exactly 1,048,576 bytes. The builder verifies the revision in [profiles/dune-us.json](profiles/dune-us.json):
